@@ -7,8 +7,8 @@ with open(os.path.join(os.path.abspath(os.path.dirname(__file__)), 'README.md'),
 
 setup(name='safemotions',
       version='0.1.0',
-      packages=find_packages(
-          where='safemotions'),
+      packages=find_packages(),
+      include_package_data=True,
       author='Jonas C. Kiemel',
       author_email='jonas.kiemel@kit.edu',
       url='https://github.com/translearn/safemotions',
