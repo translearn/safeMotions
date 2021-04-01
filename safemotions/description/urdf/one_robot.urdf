@@ -1,0 +1,274 @@
+<?xml version="1.0" ?>
+<robot name="main">
+  <link name="world"/>
+  <joint name="table_joint" type="fixed">
+    <parent link="world"/>
+    <child link="table"/>
+    <origin rpy="0 0 0" xyz="0 0 0"/>
+  </joint>
+  <link name="table">
+    <inertial>
+      <origin rpy="0 0 0" xyz="0 0 -0.18746"/>
+      <mass value="600"/>
+      <inertia ixx="152.284" ixy="0" ixz="0" iyy="207.558" iyz="0" izz="288.142"/>
+    </inertial>
+    <visual>
+      <origin rpy="0 0 1.5707963267948966" xyz="0 0 0"/>
+      <geometry>
+        <mesh filename="package://safemotions/description/meshes/misc/visual/table.dae"/>
+      </geometry>
+    </visual>
+    <collision>
+      <origin rpy="0 0 0" xyz="0 0 -0.1"/>
+      <geometry>
+        <box size="1.2 1.6 0.2"/>
+      </geometry>
+    </collision>
+  </link>
+  <joint name="base_adapter_joint" type="fixed">
+    <parent link="world"/>
+    <child link="iiwa_base_adapter"/>
+    <origin rpy="0 0 0" xyz="-0.2 0 0"/>
+  </joint>
+  <link name="iiwa_base_adapter">
+    <inertial>
+      <origin rpy="0 0 0" xyz="0 0 0"/>
+      <mass value="1"/>
+      <inertia ixx="1" ixy="0" ixz="0" iyy="1" iyz="0" izz="1"/>
+    </inertial>
+    <visual>
+      <origin rpy="0 0 0" xyz="0 0 0"/>
+      <geometry>
+        <mesh filename="package://safemotions/description/meshes/misc/visual/base_adapter.dae"/>
+      </geometry>
+    </visual>
+    <collision>
+      <origin rpy="0 0 0" xyz="0 0 0.01"/>
+      <geometry>
+        <cylinder length="0.02" radius="0.16"/>
+      </geometry>
+    </collision>
+  </link>
+  <joint name="iiwa_base_adapter_iiwa_joint" type="fixed">
+    <origin rpy="0 0 0" xyz="0 0 0.02"/>
+    <parent link="iiwa_base_adapter"/>
+    <child link="iiwa_link_0"/>
+  </joint>
+  <link name="iiwa_link_0">
+    <inertial>
+      <origin rpy="0 0 0" xyz="-0.01 0 0.07"/>
+      <mass value="5"/>
+      <inertia ixx="0.05" ixy="0" ixz="0" iyy="0.06" iyz="0" izz="0.03"/>
+    </inertial>
+    <visual>
+      <geometry>
+        <mesh filename="package://safemotions/description/meshes/iiwa7/visual/base.dae"/>
+      </geometry>
+    </visual>
+    <collision>
+      <geometry>
+        <mesh filename="package://safemotions/description/meshes/iiwa7/collision/base.stl"/>
+      </geometry>
+    </collision>
+    <self_collision_checking>
+      <origin rpy="0 0 0" xyz="0 0 0"/>
+      <geometry>
+        <capsule length="0.25" radius="0.15"/>
+      </geometry>
+    </self_collision_checking>
+  </link>
+  <joint name="iiwa_joint_1" type="revolute">
+    <parent link="iiwa_link_0"/>
+    <child link="iiwa_link_1"/>
+    <origin rpy="0 0 0" xyz="0 0 0.157"/>
+    <axis xyz="0 0 1"/>
+    <limit effort="176" lower="-2.9670597283903604" upper="2.9670597283903604" velocity="1.710422666954443"/>
+    <safety_controller k_position="100" k_velocity="2" soft_lower_limit="-2.9321531433504737" soft_upper_limit="2.9321531433504737"/>
+    <dynamics damping="0.5"/>
+  </joint>
+  <link name="iiwa_link_1">
+    <inertial>
+      <origin rpy="0 0 0" xyz="0 -0.03 0.12"/>
+      <mass value="3.4525"/>
+      <inertia ixx="0.02183" ixy="0" ixz="0" iyy="0.02081" iyz="0.003883" izz="0.007697"/>
+    </inertial>
+    <visual>
+      <geometry>
+        <mesh filename="package://safemotions/description/meshes/iiwa7/visual/link1.dae"/>
+      </geometry>
+    </visual>
+    <collision>
+      <geometry>
+        <mesh filename="package://safemotions/description/meshes/iiwa7/collision/link1.stl"/>
+      </geometry>
+    </collision>
+  </link>
+  <joint name="iiwa_joint_2" type="revolute">
+    <parent link="iiwa_link_1"/>
+    <child link="iiwa_link_2"/>
+    <origin rpy="0 0 0" xyz="0 0 0.183"/>
+    <axis xyz="0 1 0"/>
+    <limit effort="176" lower="-2.0943951023931953" upper="2.0943951023931953" velocity="1.710422666954443"/>
+    <safety_controller k_position="100" k_velocity="2" soft_lower_limit="-2.0594885173533086" soft_upper_limit="2.0594885173533086"/>
+    <dynamics damping="0.5"/>
+  </joint>
+  <link name="iiwa_link_2">
+    <inertial>
+      <origin rpy="0 0 0" xyz="0.000 0.034417 0.0673286"/>
+      <mass value="3.4821"/>
+      <inertia ixx="0.02177" ixy="0" ixz="0.00" iyy="0.02075" iyz="0.003621" izz="0.00779"/>
+    </inertial>
+    <visual>
+      <geometry>
+        <mesh filename="package://safemotions/description/meshes/iiwa7/visual/link2.dae"/>
+      </geometry>
+    </visual>
+    <collision>
+      <geometry>
+        <mesh filename="package://safemotions/description/meshes/iiwa7/collision/link2.stl"/>
+      </geometry>
+    </collision>
+  </link>
+  <joint name="iiwa_joint_3" type="revolute">
+    <parent link="iiwa_link_2"/>
+    <child link="iiwa_link_3"/>
+    <origin rpy="0 0 0" xyz="0 0 0.185"/>
+    <axis xyz="0 0 1"/>
+    <limit effort="110" lower="-2.9670597283903604" upper="2.9670597283903604" velocity="1.7453292519943295"/>
+    <safety_controller k_position="100" k_velocity="2" soft_lower_limit="-2.9321531433504737" soft_upper_limit="2.9321531433504737"/>
+    <dynamics damping="0.5"/>
+  </joint>
+  <link name="iiwa_link_3">
+    <inertial>
+      <origin rpy="0 0 0" xyz="0 0.0295 0.1258"/>
+      <mass value="4.05623"/>
+      <inertia ixx="0.03204" ixy="0" ixz="0" iyy="0.03044" iyz="-0.006231" izz="0.009726"/>
+    </inertial>
+    <visual>
+      <geometry>
+        <mesh filename="package://safemotions/description/meshes/iiwa7/visual/link3.dae"/>
+      </geometry>
+    </visual>
+    <collision>
+      <geometry>
+        <mesh filename="package://safemotions/description/meshes/iiwa7/collision/link3.stl"/>
+      </geometry>
+    </collision>
+  </link>
+  <joint name="iiwa_joint_4" type="revolute">
+    <parent link="iiwa_link_3"/>
+    <child link="iiwa_link_4"/>
+    <origin rpy="0 0 0" xyz="0 0 0.215"/>
+    <axis xyz="0 -1 0"/>
+    <limit effort="110" lower="-2.0943951023931953" upper="2.0943951023931953" velocity="2.2689280275926285"/>
+    <safety_controller k_position="100" k_velocity="2" soft_lower_limit="-2.0594885173533086" soft_upper_limit="2.0594885173533086"/>
+    <dynamics damping="0.5"/>
+  </joint>
+  <link name="iiwa_link_4">
+    <inertial>
+      <origin rpy="0 0 0" xyz="0 -0.034 0.067"/>
+      <mass value="3.4822"/>
+      <inertia ixx="0.021775" ixy="0" ixz="0" iyy="0.02075" iyz="-0.003621" izz="0.007783"/>
+    </inertial>
+    <visual>
+      <geometry>
+        <mesh filename="package://safemotions/description/meshes/iiwa7/visual/link4.dae"/>
+      </geometry>
+    </visual>
+    <collision>
+      <geometry>
+        <mesh filename="package://safemotions/description/meshes/iiwa7/collision/link4.stl"/>
+      </geometry>
+    </collision>
+  </link>
+  <joint name="iiwa_joint_5" type="revolute">
+    <parent link="iiwa_link_4"/>
+    <child link="iiwa_link_5"/>
+    <origin rpy="0 0 0" xyz="0 0 0.4"/>
+    <axis xyz="0 0 1"/>
+    <limit effort="110" lower="-2.9670597283903604" upper="2.9670597283903604" velocity="2.443460952792061"/>
+    <safety_controller k_position="100" k_velocity="2" soft_lower_limit="-2.9321531433504737" soft_upper_limit="2.9321531433504737"/>
+    <dynamics damping="0.5"/>
+  </joint>
+  <link name="iiwa_link_5">
+    <inertial>
+      <origin rpy="0 0 0" xyz="0.0001 -0.02263 -0.1365"/>
+      <mass value="2.1633"/>
+      <inertia ixx="0.01287" ixy="0" ixz="0" iyy="0.01112" iyz="0.003943" izz="0.0057128"/>
+    </inertial>
+    <visual>
+      <geometry>
+        <mesh filename="package://safemotions/description/meshes/iiwa7/visual/link5.dae"/>
+      </geometry>
+    </visual>
+    <collision>
+      <geometry>
+        <mesh filename="package://safemotions/description/meshes/iiwa7/collision/link5.stl"/>
+      </geometry>
+    </collision>
+  </link>
+  <joint name="iiwa_joint_6" type="revolute">
+    <parent link="iiwa_link_5"/>
+    <child link="iiwa_link_6"/>
+    <origin rpy="0 0 0" xyz="0 0 0"/>
+    <axis xyz="0 1 0"/>
+    <limit effort="40" lower="-2.0943951023931953" upper="2.0943951023931953" velocity="3.141592653589793"/>
+    <safety_controller k_position="100" k_velocity="2" soft_lower_limit="-2.0594885173533086" soft_upper_limit="2.0594885173533086"/>
+    <dynamics damping="0.5"/>
+  </joint>
+  <link name="iiwa_link_6">
+    <inertial>
+      <origin rpy="0 0 0" xyz="0 0.00047 0.002124"/>
+      <mass value="2.3466"/>
+      <inertia ixx="0.006522" ixy="0" ixz="0" iyy="0.006270" iyz="0.00032280" izz="0.0045345"/>
+    </inertial>
+    <visual>
+      <geometry>
+        <mesh filename="package://safemotions/description/meshes/iiwa7/visual/link6.dae"/>
+      </geometry>
+    </visual>
+    <collision>
+      <geometry>
+        <mesh filename="package://safemotions/description/meshes/iiwa7/collision/link6.stl"/>
+      </geometry>
+    </collision>
+  </link>
+  <joint name="iiwa_joint_7" type="revolute">
+    <parent link="iiwa_link_6"/>
+    <child link="iiwa_link_7"/>
+    <origin rpy="0 0 0" xyz="0 0 0"/>
+    <axis xyz="0 0 1"/>
+    <limit effort="40" lower="-3.0543261909900763" upper="3.0543261909900763" velocity="3.141592653589793"/>
+    <safety_controller k_position="100" k_velocity="2" soft_lower_limit="-3.01941960595019" soft_upper_limit="3.01941960595019"/>
+    <dynamics damping="0.5"/>
+  </joint>
+  <link name="iiwa_link_7">
+    <inertial>
+      <origin rpy="0 0 0" xyz="0 0 0.1"/>
+      <mass value="3.129"/>
+      <inertia ixx="0.0022711" ixy="0.0000221" ixz="0" iyy="0.0022807" iyz="0" izz="0.002872"/>
+    </inertial>
+    <visual>
+      <geometry>
+        <mesh filename="package://safemotions/description/meshes/iiwa7/visual/link7.dae"/>
+      </geometry>
+    </visual>
+    <collision>
+      <geometry>
+        <mesh filename="package://safemotions/description/meshes/iiwa7/collision/link7.stl"/>
+      </geometry>
+    </collision>
+  </link>
+  <joint name="iiwa_joint_ee" type="fixed">
+    <parent link="iiwa_link_7"/>
+    <child link="iiwa_link_ee"/>
+    <origin rpy="0 0 0" xyz="0 0 0.126"/>
+  </joint>
+  <link name="iiwa_link_ee">
+    <inertial>
+      <origin rpy="0 0 0" xyz="0 0 0"/>
+      <mass value="1"/>
+      <inertia ixx="1" ixy="0" ixz="0" iyy="1" iyz="0" izz="1"/>
+    </inertial>
+  </link>
+</robot>

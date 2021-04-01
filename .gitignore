@@ -1,0 +1,6 @@
+__pycache__/
+
+evaluation/
+.idea/
+
+*.pyc
