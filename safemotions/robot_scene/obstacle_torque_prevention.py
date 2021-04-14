@@ -45,7 +45,6 @@ class ObstacleWrapperBase:
                  target_point_radius=0.05,
                  target_point_sequence=0,
                  target_point_reached_reward_bonus=0,
-                 target_point_balancing=True,
                  target_point_use_actual_position=False,
                  # True: Check if a target point is reached based on the actual position, False: Use setpoints
                  *vargs,
@@ -111,36 +110,21 @@ class ObstacleWrapperBase:
         self._actual_position = None
         self._actual_velocity = None
 
-        if target_point_balancing:
-            self._starting_point_cartesian_range = [[-0.6, 0.6], [-0.8, 0.8],
-                                                    [0.5, 1]]  # [[x_min, x_max], [y_min, y_max], [z_min, z_max]]
-        else:
-            self._starting_point_cartesian_range = [[-0.6, 0.6], [-0.8, 0.8],
-                                                    [0.1, 1]]  # [[x_min, x_max], [y_min, y_max], [z_min, z_max]]
+
+        self._starting_point_cartesian_range = [[-0.6, 0.6], [-0.8, 0.8],
+                                                [0.1, 1]]  # [[x_min, x_max], [y_min, y_max], [z_min, z_max]]
 
         if target_point_cartesian_range_scene == 0:
-            if target_point_balancing:
-                self._target_point_cartesian_range = [[-0.6, 0.6], [-0.8, 0.8],
-                                                      [0.5, 1]]  # [[x_min, x_max], [y_min, y_max], [z_min, z_max]]
-            else:
-                self._target_point_cartesian_range = [[-0.6, 0.6], [-0.8, 0.8],
-                                                      [0.1, 1]]  # [[x_min, x_max], [y_min, y_max], [z_min, z_max]]
+            self._target_point_cartesian_range = [[-0.6, 0.6], [-0.8, 0.8],
+                                                  [0.1, 1]]  # [[x_min, x_max], [y_min, y_max], [z_min, z_max]]
 
         elif target_point_cartesian_range_scene == 1:
-            if target_point_balancing:
-                self._target_point_cartesian_range = [[-0.6, 0.6], [-0.3, 0.3],
-                                                      [0.5, 1]]  # [[x_min, x_max], [y_min, y_max], [z_min, z_max]]
-            else:
-                self._target_point_cartesian_range = [[-0.6, 0.6], [-0.3, 0.3],
-                                                      [0.1, 1]]  # [[x_min, x_max], [y_min, y_max], [z_min, z_max]]
+            self._target_point_cartesian_range = [[-0.6, 0.6], [-0.3, 0.3],
+                                                  [0.1, 1]]  # [[x_min, x_max], [y_min, y_max], [z_min, z_max]]
 
         elif target_point_cartesian_range_scene == 2:
-            if target_point_balancing:
-                self._target_point_cartesian_range = [[-0.4, 0.4], [-0.4, 0.4],
-                                                      [0.5, 1]]  # [[x_min, x_max], [y_min, y_max], [z_min, z_max]]
-            else:
-                self._target_point_cartesian_range = [[-0.4, 0.4], [-0.4, 0.4],
-                                                      [0.1, 1]]  # [[x_min, x_max], [y_min, y_max], [z_min, z_max]]
+            self._target_point_cartesian_range = [[-0.4, 0.4], [-0.4, 0.4],
+                                                  [0.1, 1]]  # [[x_min, x_max], [y_min, y_max], [z_min, z_max]]
 
         else:
             self._target_point_cartesian_range = [[-0.6, 0.6], [-0.8, 0.8],
@@ -725,6 +709,7 @@ class ObstacleWrapperSim(ObstacleWrapperBase):
                 attempts=attempts)
 
         self._target_point_sampling_attempts_list[robot].append(attempts_counter)
+        logging.debug("Target point position robot %s: %s", robot, target_point_pos)
 
         self._target_point_list[robot].append(self._add_obstacle(enable_collisions=False, pos=target_point_pos,
                                                                  shape=p.GEOM_SPHERE, radius=self._target_point_radius,

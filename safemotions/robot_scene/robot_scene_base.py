@@ -25,6 +25,7 @@ class RobotSceneBase(object):
                  simulation_client_id=None,
                  simulation_time_step=None,
                  obstacle_client_id=None,
+                 trajectory_time_step=None,
                  use_real_robot=False,
                  robot_scene=0,
                  obstacle_scene=0,
@@ -59,6 +60,7 @@ class RobotSceneBase(object):
         self._simulation_time_step = simulation_time_step
         self._obstacle_client_id = obstacle_client_id
         self._use_real_robot = use_real_robot
+        self._trajectory_time_step = trajectory_time_step
 
         self._num_clients = 0
         if self._simulation_client_id is not None:
@@ -70,7 +72,6 @@ class RobotSceneBase(object):
 
         self._num_robots = None
         self._robot_scene = robot_scene
-        self._trajectory_time_step = None
 
         robot_urdf = None
         if robot_scene == 0:
@@ -124,10 +125,10 @@ class RobotSceneBase(object):
 
             self._obstacle_wrapper = \
                 ObstacleWrapperSim(robot_scene=self,
-                                   simulation_client_id=simulation_client_id,
-                                   simulationTimeStep=self._simulation_time_step,
-                                   obstacle_client_id=obstacle_client_id,
-                                   use_real_robot=use_real_robot,
+                                   simulation_client_id=self._simulation_client_id,
+                                   simulation_time_step=self._simulation_time_step,
+                                   obstacle_client_id=self._obstacle_client_id,
+                                   use_real_robot=self._use_real_robot,
                                    obstacle_scene=obstacle_scene,
                                    observed_link_point_scene=observed_link_point_scene,
                                    log_obstacle_data=log_obstacle_data,
@@ -184,8 +185,7 @@ class RobotSceneBase(object):
 
         self._trajectory_index = -1
 
-    def compute_actual_joint_limits(self, trajectory_time_step):
-        self._trajectory_time_step = trajectory_time_step
+    def compute_actual_joint_limits(self):
         self._joint_lower_limits = list(np.array(self._initial_joint_lower_limits) * self._pos_limit_factor)
         self._joint_upper_limits = list(np.array(self._initial_joint_upper_limits) * self._pos_limit_factor)
         self._max_velocities = self._initial_max_velocities * self._vel_limit_factor

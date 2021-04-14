@@ -49,8 +49,8 @@ class SafeMotionsBase(gym.Env):
                  log_obstacle_data=False,
                  save_obstacle_data=False,
                  store_actions=False,
-                 online_trajectory_duration=None,
-                 online_trajectory_time_step=None,
+                 online_trajectory_duration=8.0,
+                 online_trajectory_time_step=0.1,
                  position_controller_time_constants=None,
                  plot_computed_actual_values=False,
                  plot_actual_torques=False,
@@ -212,9 +212,8 @@ class SafeMotionsBase(gym.Env):
         robot_scene_parameters = {'simulation_client_id': self._simulation_client_id,
                                   'simulation_time_step': self._simulation_time_step,
                                   'obstacle_client_id': self._obstacle_client_id,
+                                  'trajectory_time_step': self._trajectory_time_step,
                                   'use_real_robot': self._use_real_robot,
-                                  'physics_client_id': self._simulation_client_id,
-                                  'visual_mode': self._use_gui,
                                   'robot_scene': self._robot_scene_config,
                                   'obstacle_scene': self._obstacle_scene,
                                   'observed_link_point_scene': self._observed_link_point_scene,
@@ -235,9 +234,9 @@ class SafeMotionsBase(gym.Env):
                                   'target_point_radius': self._target_point_radius,
                                   'target_point_sequence': self._target_point_sequence,
                                   'target_point_reached_reward_bonus': self._target_point_reached_reward_bonus,
+                                  'no_self_collision': self._no_self_collision,
                                   'target_link_name': self._target_link_name,
                                   'target_link_offset': self._target_link_offset,
-                                  'no_self_collision': self._no_self_collision,
                                   'pos_limit_factor': self._pos_limit_factor,
                                   'vel_limit_factor': self._vel_limit_factor,
                                   'acc_limit_factor': self._acc_limit_factor,
@@ -257,7 +256,7 @@ class SafeMotionsBase(gym.Env):
                                                      trajectory_duration=self._online_trajectory_duration,
                                                      obstacle_wrapper=self._robot_scene.obstacle_wrapper)
 
-        self._robot_scene.compute_actual_joint_limits(self._trajectory_time_step)
+        self._robot_scene.compute_actual_joint_limits()
         self._control_steps_per_action = int(round(self._trajectory_time_step / self._control_time_step))
         self._obstacle_client_update_steps_per_action = int(round(self._trajectory_time_step /
                                                                   self._simulation_time_step))
@@ -314,7 +313,9 @@ class SafeMotionsBase(gym.Env):
         self._start_velocity = np.array(self._zero_joint_vector)
         self._start_acceleration = np.array(self._zero_joint_vector)
         if self._use_real_robot:
-            logging.info("Starting position:", self._start_position)
+            logging.info("Starting position: %s", self._start_position)
+        else:
+            logging.debug("Starting position: %s", self._start_position)
         self._robot_scene.pose_manipulator(self._start_position)
         self._robot_scene.obstacle_wrapper.reset(start_position=self._start_position)
         self._robot_scene.obstacle_wrapper.update(target_position=self._start_position,
