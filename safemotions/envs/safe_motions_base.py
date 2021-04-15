@@ -105,12 +105,8 @@ class SafeMotionsBase(gym.Env):
             else:
                 self._simulation_client_id = None
 
-        if obstacle_scene != 0 or use_target_points:
-            self._obstacle_client_id = p.connect(p.DIRECT)
-            self._num_physic_clients += 1
-        else:
-            self._use_obstacle_setpoint_client = False
-            self._obstacle_client_id = None
+        self._obstacle_client_id = p.connect(p.DIRECT)
+        self._num_physic_clients += 1
 
         if control_time_step is None:
             self._control_time_step = CONTROLLER_TIME_STEP if self._use_real_robot else SIM_TIME_STEP

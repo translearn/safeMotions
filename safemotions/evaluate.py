@@ -49,7 +49,7 @@ def rollout_manually(agent, evaluation_dir):
 
     episodes_sampled = 0
     timestamp = datetime.datetime.now().strftime('%Y%m%dT%H%M%S')
-    experiment_name = os.path.join(args.env, env_config['experiment_name'] , timestamp)
+    experiment_name = os.path.join(env_config['experiment_name'], timestamp)
 
     if args.store_metrics:
         evaluation_dir = os.path.join(evaluation_dir, "trajectory_logs")
@@ -183,7 +183,7 @@ def rollout_manually(agent, evaluation_dir):
 
 if __name__ == '__main__':
     logging.basicConfig()
-    logging.getLogger().setLevel(logging.DEBUG)
+    logging.getLogger().setLevel(logging.INFO)
     parser = argparse.ArgumentParser()
     parser.add_argument('--name', type=str, default=None,
                         help="The name of the evaluation.")
