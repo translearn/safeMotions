@@ -7,7 +7,7 @@ The package can be installed by running
 
     pip install safemotions
 
-## Trajectory Generation
+## Trajectory generation
 
 To generate a random trajectory with a single robot run
 
@@ -49,9 +49,6 @@ python -m safemotions.train --logdir=safemotions_training --name=One_robot_P_CT_
 
 ## Publication
 The corresponding publication is available at [https://arxiv.org/abs/2103.03793](https://arxiv.org/abs/2103.03793).
-
-
-## Video
 
 [![Video](https://img.youtube.com/vi/5YpUhMx1xZM/0.jpg)](https://www.youtube.com/watch?v=5YpUhMx1xZM)
 
