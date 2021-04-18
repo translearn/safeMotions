@@ -6,7 +6,6 @@
 # OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 import argparse
-import collections
 import json
 import os
 import sys
@@ -18,9 +17,6 @@ import logging
 import numpy as np
 import errno
 from ray.rllib import rollout
-from ray.rllib.env.base_env import _DUMMY_AGENT_ID
-from ray.rllib.evaluation.episode import _flatten_action
-from ray.rllib.policy.sample_batch import DEFAULT_POLICY_ID
 from ray import tune
 from pathlib import Path
 current_dir = os.path.dirname(os.path.abspath(inspect.getfile(inspect.currentframe())))
@@ -41,12 +37,6 @@ def np_encoder(object):
 
 def rollout_manually(agent, evaluation_dir):
     env = agent.workers.local_worker().env
-    policy_map = agent.workers.local_worker().policy_map
-    action_init = {
-        p: _flatten_action(m.action_space.sample())
-        for p, m in policy_map.items()
-    }
-
     episodes_sampled = 0
     timestamp = datetime.datetime.now().strftime('%Y%m%dT%H%M%S')
     experiment_name = os.path.join(env_config['experiment_name'], timestamp)
@@ -81,11 +71,6 @@ def rollout_manually(agent, evaluation_dir):
             metric_file = str(episodes_sampled) + '_' + timestamp + "_sim" + ".json"
 
         obs = env.reset()
-
-        mapping_cache = {}
-        prev_actions = rollout.DefaultMapping(lambda agent_id: action_init[mapping_cache[agent_id]])
-        prev_rewards = collections.defaultdict(lambda: 0.)
-
         done = False
         reward_total = 0.0
         episode_info = {}
@@ -93,24 +78,7 @@ def rollout_manually(agent, evaluation_dir):
         start_episode_timer = time.time()
         while not done:
             steps = steps + 1
-
-            multi_obs = {_DUMMY_AGENT_ID: obs}
-            action_dict = {}
-
-            for agent_id, a_obs in multi_obs.items():
-                if a_obs is not None:
-                    policy_id = mapping_cache.setdefault(
-                        agent_id, DEFAULT_POLICY_ID)
-
-                    a_action = agent.compute_action(
-                        a_obs,
-                        prev_action=prev_actions[agent_id],
-                        prev_reward=prev_rewards[agent_id],
-                        policy_id=policy_id)
-                    a_action = _flatten_action(a_action)
-                    action_dict[agent_id] = a_action
-                    prev_actions[agent_id] = a_action
-            action = action_dict[_DUMMY_AGENT_ID]
+            action = agent.compute_action(obs)
 
             if args.store_metrics:
                 next_obs, reward, done, info = env.step(action)
@@ -127,8 +95,6 @@ def rollout_manually(agent, evaluation_dir):
             else:
                 next_obs, reward, done, _ = env.step(action)
 
-            if agent is not None:
-                prev_rewards[_DUMMY_AGENT_ID] = reward
             reward_total += reward
             logging.debug("Observation %s: %s", steps, obs)
             logging.debug("Action %s: %s", steps, action)
