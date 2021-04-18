@@ -109,7 +109,7 @@ class TrajectoryPlotter:
         # select the backend for matplotlib, potential values with GUI support: 'QT5Agg', 'TkAgg'
         matplotlib.rcParams['pdf.fonttype'] = 42
         matplotlib.rcParams['ps.fonttype'] = 42
-        matplotlib.rcParams['text.usetex'] = True
+        matplotlib.rcParams['text.usetex'] = False
 
         if evaluation_dir is None:
             self._evaluationDir = os.path.join(Path.home(), "safe_motions_evaluation")
@@ -173,7 +173,6 @@ class TrajectoryPlotter:
         if self._plot_actual_torques:
             num_subplots += 1
 
-        matplotlib.rcParams['text.usetex'] = False
         fig, ax = plt.subplots(num_subplots, 1, sharex=True)
 
         if self._obstacle_wrapper is None or self._obstacle_wrapper.obstacle_scene == 0 \
