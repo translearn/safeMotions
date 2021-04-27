@@ -21,7 +21,7 @@ from safemotions.utils.trajectory_manager import TrajectoryManager
 
 SIM_TIME_STEP = 1. / 240.
 CONTROLLER_TIME_STEP = 1. / 200.
-EPISODES_PER_SIMULATION_RESET = 50000  # to avoid out of memory error
+EPISODES_PER_SIMULATION_RESET = 25000  # to avoid out of memory error
 
 # Termination reason
 TERMINATION_UNSET = -1

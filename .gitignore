@@ -4,3 +4,4 @@ dist/
 safemotions.egg-info/
 
 *.pyc
+*.wrl

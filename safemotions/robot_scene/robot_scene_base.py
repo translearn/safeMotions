@@ -86,6 +86,8 @@ class RobotSceneBase(object):
             self._num_robots = 3
             robot_urdf = "three_robots"
 
+        os.environ["LC_NUMERIC"] = "en_US.UTF-8"  # avoid wrong parsing of urdf files caused by localization (, vs .)
+
         for i in range(self._num_clients):
             if self._no_self_collision:
                 self._robot_id = p.loadURDF(os.path.join(self.URDF_DIR, robot_urdf + ".urdf"), useFixedBase=True,
