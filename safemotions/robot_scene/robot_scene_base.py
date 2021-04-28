@@ -6,8 +6,9 @@
 import inspect
 import logging
 import os
-import re
+os.environ["LC_NUMERIC"] = "en_US.UTF-8"  # avoid wrong parsing of urdf files caused by localization (, vs .)
 
+import re
 import numpy as np
 import pybullet as p
 
@@ -85,8 +86,6 @@ class RobotSceneBase(object):
         if robot_scene == 2:
             self._num_robots = 3
             robot_urdf = "three_robots"
-
-        os.environ["LC_NUMERIC"] = "en_US.UTF-8"  # avoid wrong parsing of urdf files caused by localization (, vs .)
 
         for i in range(self._num_clients):
             if self._no_self_collision:
