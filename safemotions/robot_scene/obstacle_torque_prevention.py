@@ -110,7 +110,6 @@ class ObstacleWrapperBase:
         self._actual_position = None
         self._actual_velocity = None
 
-
         self._starting_point_cartesian_range = [[-0.6, 0.6], [-0.8, 0.8],
                                                 [0.1, 1]]  # [[x_min, x_max], [y_min, y_max], [z_min, z_max]]
 
@@ -276,7 +275,7 @@ class ObstacleWrapperSim(ObstacleWrapperBase):
 
         self._simulation_client_id = simulation_client_id
         if self._log_obstacle_data and self._simulation_client_id is None:
-            raise ValueError("logObstacleDate requires an active physics client (physicsClientId is None)")
+            raise ValueError("log_obstacle_data requires an active physics client (physicsClientId is None)")
         self._obstacle_client_id = obstacle_client_id
         self._obstacle_client_status = self.OBSTACLE_CLIENT_AT_OTHER_POSITION
         self._use_real_robot = use_real_robot

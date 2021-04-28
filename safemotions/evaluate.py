@@ -164,6 +164,7 @@ if __name__ == '__main__':
     parser.add_argument('--use_real_robot', action='store_true', default=None)
     parser.add_argument('--real_robot_debug_mode', dest='real_robot_debug_mode', action='store_true', default=False)
     parser.add_argument('--use_gui', action='store_true', default=False)
+    parser.add_argument('--online_trajectory_duration', type=float, default=None)
     parser.add_argument('--store_metrics', action='store_true', default=False)
     parser.add_argument('--plot_trajectory', action='store_true', default=False)
     parser.add_argument('--save_trajectory_plot', action='store_true', default=False)
@@ -243,6 +244,9 @@ if __name__ == '__main__':
 
     if args.obstacle_scene is not None:
         env_config['obstacle_scene'] = args.obstacle_scene
+
+    if args.online_trajectory_duration is not None:
+        env_config['online_trajectory_duration'] = args.online_trajectory_duration
 
     if args.plot_trajectory:
 
