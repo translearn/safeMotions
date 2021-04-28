@@ -28,6 +28,12 @@ if __name__ == '__main__':
     parser.add_argument('--log_obstacle_data', action='store_true', default=False)
     parser.add_argument('--plot_trajectory', action='store_true', default=False)
     parser.add_argument('--plot_actual_values', action='store_true', default=False)
+    parser.add_argument('--pos_limit_factor', type=float, default=1.0)
+    parser.add_argument('--vel_limit_factor', type=float, default=1.0)
+    parser.add_argument('--acc_limit_factor', type=float, default=1.0)
+    parser.add_argument('--jerk_limit_factor', type=float, default=1.0)
+    parser.add_argument('--torque_limit_factor', type=float, default=1.0)
+
     args = parser.parse_args()
 
     seed = None  # None or an integer (for debugging purposes)
@@ -55,11 +61,11 @@ if __name__ == '__main__':
     camera_angle = 1
     # camera_angle for video rendering; predefined settings are defined in video_recording.py
 
-    pos_limit_factor = 1.0
-    vel_limit_factor = 1.0
-    acc_limit_factor = 1.0
-    jerk_limit_factor = 1.0
-    torque_limit_factor = 1.0
+    pos_limit_factor = args.pos_limit_factor
+    vel_limit_factor = args.vel_limit_factor
+    acc_limit_factor = args.acc_limit_factor
+    jerk_limit_factor = args.jerk_limit_factor
+    torque_limit_factor = args.torque_limit_factor
     # the maximum values for the position, velocity, acceleration, jerk and torque for each joint are multiplied
     # with the factors defined above
 
