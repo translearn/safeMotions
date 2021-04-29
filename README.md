@@ -1,6 +1,8 @@
 # Learning Collision-free and Torque-limited Robot Trajectories based on Alternative Safe Behaviors
 This python package provides the code to learn torque-limited and collision-free robot trajectories without exceeding limits on the position, velocity, acceleration and jerk of each robot joint.
 
+![safemotions_picture](https://user-images.githubusercontent.com/51738372/116555683-f32d7680-a8fc-11eb-8cce-b01931c6ba58.png)
+
 ## Installation
 
 The package can be installed by running
