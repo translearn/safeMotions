@@ -15,6 +15,7 @@ setup(name='safemotions',
       description='Learning Collision-free and Torque-limited Robot Trajectories based on Alternative Safe Behaviors.',
       long_description=readme_file,
       long_description_content_type='text/markdown',
+      license='MIT',
       python_requires='>=3.5, <3.9',
       install_requires=[
           'numpy',
