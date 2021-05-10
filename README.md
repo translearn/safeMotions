@@ -7,7 +7,8 @@ This python package provides the code to learn torque-limited and collision-free
 
 The package can be installed by running
 
-    pip install safemotions
+    pip install safemotions  # for safe trajectory generation only or
+    pip install safemotions[train]  # to include dependencies required to train and evaluate neural networks.
 
 ## Trajectory generation
 
