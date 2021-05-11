@@ -12,6 +12,7 @@ import logging
 import os
 import sys
 import inspect
+import json
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(inspect.getfile(inspect.currentframe())))))
 from safemotions.envs.safe_motions_env import SafeMotionsEnv
 
@@ -20,6 +21,7 @@ if __name__ == '__main__':
     logging.basicConfig()
     logging.getLogger().setLevel(logging.INFO)
     parser = argparse.ArgumentParser()
+    parser.add_argument('--use_gui', action='store_true', default=False)
     parser.add_argument('--robot_scene', type=int, default=0)
     parser.add_argument('--obstacle_scene', type=int, default=None)
     parser.add_argument('--use_control_rate_sleep', action='store_true', default=False)
@@ -28,11 +30,16 @@ if __name__ == '__main__':
     parser.add_argument('--log_obstacle_data', action='store_true', default=False)
     parser.add_argument('--plot_trajectory', action='store_true', default=False)
     parser.add_argument('--plot_actual_values', action='store_true', default=False)
+    parser.add_argument('--switch_gui', action='store_true', default=False)
     parser.add_argument('--pos_limit_factor', type=float, default=1.0)
     parser.add_argument('--vel_limit_factor', type=float, default=1.0)
     parser.add_argument('--acc_limit_factor', type=float, default=1.0)
     parser.add_argument('--jerk_limit_factor', type=float, default=1.0)
     parser.add_argument('--torque_limit_factor', type=float, default=1.0)
+    parser.add_argument('--closest_point_safety_distance', type=float, default=0.05)
+    parser.add_argument('--target_point_cartesian_range_scene', type=int, default=None)
+    parser.add_argument('--check_braking_trajectory_torque_limits', action='store_true', default=False)
+    parser.add_argument('--plot_joint', type=json.loads, default=None)
 
     args = parser.parse_args()
 
@@ -44,7 +51,8 @@ if __name__ == '__main__':
     use_real_robot = False
     real_robot_debug_mode = False
     # if true, the joint commands are not send to the real robot but all other computations stay the same.
-    use_gui = True
+    use_gui = args.use_gui  # if true, the physics simulation is visualized by a GUI (requires an X server)
+    switch_gui = args.switch_gui  # True: show background calculations instead of actual robot movements
     control_time_step = None
     # None: use default; if provided, the trajectory timestep must be a multiple of the control_time_step
     use_control_rate_sleep = args.use_control_rate_sleep
@@ -81,7 +89,10 @@ if __name__ == '__main__':
 
     plot_trajectory = args.plot_trajectory
     save_trajectory_plot = False
-    plot_joint = [True, True, True, True, True, True, True] * num_robots
+    if args.plot_joint is None:
+        plot_joint = [True, True, True, True, True, True, True] * num_robots
+    else:
+        plot_joint = args.plot_joint
     # selects the joints to be plotted;
     plot_acc_limits = False
     plot_actual_values = args.plot_actual_values
@@ -121,7 +132,7 @@ if __name__ == '__main__':
     # time in seconds between collision checks; the trajectory timestep should be a multiple of this time
     check_braking_trajectory_closest_points = True
     # True: Closed points are checked (including self-collision if activated);
-    closest_point_safety_distance = 0.05
+    closest_point_safety_distance = args.closest_point_safety_distance
     # minimum distance that should be guaranteed by the collision avoidance method for closest points
     check_braking_trajectory_observed_points = False
     # True: Observed points are checked;
@@ -132,16 +143,19 @@ if __name__ == '__main__':
     # 2: observe the robot body starting from link 3 with in total 6 spheres
     visualize_bounding_spheres = False
     # whether to visualize the bounding spheres of observed link points, requires log_obstacle_data to be True
-    check_braking_trajectory_torque_limits = True
+    check_braking_trajectory_torque_limits = args.check_braking_trajectory_torque_limits
     # torque constraint adherence by checking the actual torque of an alternative safe behavior
 
     use_target_points = True  # activate a reaching task with random target points
     target_link_name = "iiwa_link_7"  # name of the target link for target point reaching
     target_link_offset = [0, 0, 0.126]  # relative offset between the frame of the target link and the target link point
-    target_point_cartesian_range_scene = num_robots - 1
-    # different settings for the cartesian range of the target point as defined in obstacle_torque_prevention.py
-    # 0: Cartesian range used for a single robot, 1: Cartesian range used for two robots,
-    # 2: Cartesian range used for three robots
+    if args.target_point_cartesian_range_scene is None:
+        target_point_cartesian_range_scene = robot_scene
+        # different settings for the cartesian range of the target point as defined in obstacle_torque_prevention.py
+        # 0: Cartesian range used for a single robot, 1: Cartesian range used for two robots,
+        # 2: Cartesian range used for three robots
+    else:
+        target_point_cartesian_range_scene = args.target_point_cartesian_range_scene
     target_point_radius = 0.065
     # a target point is considered as reached if the distance to the target point is smaller than the specified radius
     target_point_sequence = 1  # 0: target points for all robots (T_S), 1: alternating target points (T_A)
@@ -175,7 +189,7 @@ if __name__ == '__main__':
     random_agent = True  # whether to use random actions
 
     env_config = dict(env="ObstacleTorqueEnv", experiment_name=experiment_name,
-                      use_gui=use_gui, use_control_rate_sleep=use_control_rate_sleep,
+                      use_gui=use_gui, switch_gui=switch_gui, use_control_rate_sleep=use_control_rate_sleep,
                       use_thread_for_control_rate_sleep=use_thread_for_control_rate_sleep,
                       control_time_step=control_time_step,
                       render_video=render_video, camera_angle=camera_angle,

@@ -39,12 +39,16 @@ class ObstacleWrapperBase:
                  simulation_time_step=1 / 240,
                  check_braking_trajectory_observed_points=False,
                  check_braking_trajectory_closest_points=True,
+                 closest_point_safety_distance=0.1,
+                 observed_point_safety_distance=0.1,
                  print_stats=False,
                  use_target_points=True,
                  target_point_cartesian_range_scene=0,
                  target_point_radius=0.05,
                  target_point_sequence=0,
                  target_point_reached_reward_bonus=0,
+                 punish_braking_trajectory_min_distance=False,
+                 braking_trajectory_min_distance_max_threshold=None,
                  target_point_use_actual_position=False,
                  # True: Check if a target point is reached based on the actual position, False: Use setpoints
                  *vargs,
@@ -66,6 +70,8 @@ class ObstacleWrapperBase:
         self._collision_check_time = collision_check_time
         self._check_braking_trajectory_observed_points = check_braking_trajectory_observed_points
         self._check_braking_trajectory_closest_points = check_braking_trajectory_closest_points
+        self._closest_point_safety_distance = closest_point_safety_distance
+        self._observed_point_safety_distance = observed_point_safety_distance
 
         if self._use_braking_trajectory_method and not self._check_braking_trajectory_closest_points \
                 and not self._check_braking_trajectory_observed_points:
@@ -151,6 +157,19 @@ class ObstacleWrapperBase:
         self._target_point_reached_reward_bonus = target_point_reached_reward_bonus
 
         self._target_point_use_actual_position = target_point_use_actual_position
+        self._closest_point_maximum_relevant_distance = self._closest_point_safety_distance + 0.005
+        # for performance purposes the exact distance between links / obstacles is only computed if the
+        # distance is smaller than self._closest_point_maximum_relevant_distance
+
+        if punish_braking_trajectory_min_distance:
+            if braking_trajectory_min_distance_max_threshold is None:
+                raise ValueError("punish_braking_trajectory_min_distance requires "
+                                 "braking_trajectory_min_distance_max_threshold to be specified")
+            elif braking_trajectory_min_distance_max_threshold <= self._closest_point_safety_distance:
+                raise ValueError("braking_trajectory_min_distance_max_threshold need to be greater than "
+                                 "closest_point_safety_distance")
+            else:
+                self._closest_point_maximum_relevant_distance = braking_trajectory_min_distance_max_threshold + 0.005
 
     @property
     def obstacle_scene(self):
@@ -262,8 +281,6 @@ class ObstacleWrapperSim(ObstacleWrapperBase):
                  obstacle_avoidance_robot_pos_mode=OBSTACLE_AVOIDANCE_ROBOT_POS_AVERAGE,
                  target_link_name="iiwa_link_7",
                  target_link_offset=None,
-                 closest_point_safety_distance=0.1,
-                 observed_point_safety_distance=0.1,
                  *vargs,
                  **kwargs):
         super().__init__(*vargs, **kwargs)
@@ -281,10 +298,6 @@ class ObstacleWrapperSim(ObstacleWrapperBase):
         self._use_real_robot = use_real_robot
 
         self._manip_joint_indices = manip_joint_indices
-
-        self._closest_point_safety_distance = closest_point_safety_distance
-        self._observed_point_safety_distance = observed_point_safety_distance
-
         self._visualize_bounding_spheres = visualize_bounding_spheres
         if self._visualize_bounding_spheres and not self._log_obstacle_data:
             raise ValueError("visualize_bounding_spheres requires log_obstacle_data to be True")
@@ -305,6 +318,8 @@ class ObstacleWrapperSim(ObstacleWrapperBase):
 
         closest_point_active_link_name_multiple_robots_list = self._robot_scene.get_link_names_for_multiple_robots(
             closest_point_active_link_name_list)
+
+        visualize_target_link_point = False  # bounding sphere around the target link point
 
         for i in range(len(link_name_list)):
             observed_points = self._specify_observed_points(link_name=link_name_list[i], link_index=i)
@@ -329,7 +344,7 @@ class ObstacleWrapperSim(ObstacleWrapperBase):
             self._links.append(
                 LinkBase(name=link_name_list[i], observe_closest_point=True, closest_point_active=closest_point_active,
                          observed_points=observed_points, index=i,
-                         closest_point_safety_distance=closest_point_safety_distance,
+                         closest_point_safety_distance=self._closest_point_safety_distance,
                          robot_id=self._robot_scene.robot_id,
                          robot_index=self._robot_scene.get_robot_index_from_link_name(link_name_list[i]),
                          self_collision_links=self_collision_links,
@@ -344,27 +359,40 @@ class ObstacleWrapperSim(ObstacleWrapperBase):
             if self._use_target_points:
                 if link_name_list[i] in target_link_name_list:
                     self._target_link_point_list.append(LinkPointBase(name="Target", offset=target_link_offset,
-                                                                      bounding_sphere_radius=0.0,
+                                                                      bounding_sphere_radius=0.01
+                                                                      if visualize_target_link_point else 0.0,
                                                                       safety_distance=0.0,
-                                                                      active=False, visualize_bounding_sphere=False,
+                                                                      active=False,
+                                                                      visualize_bounding_sphere=
+                                                                      visualize_target_link_point,
                                                                       num_clients=self._robot_scene.num_clients))
                     self._target_link_point_list[-1].link_object = self._links[-1]
                     self._target_link_index_list.append(i)
 
             if print_link_infos:
                 dynamics_info = p.getDynamicsInfo(self._robot_scene.robot_id, i)
-                logging.info("Link " + str(i) + " " + link_name_list[i] + " Mass: " + str(dynamics_info[0]))
+                logging.info("Link " + str(i) + " " + link_name_list[i] + " Mass: " + str(dynamics_info[0]) +
+                             " COM pos: " + str(dynamics_info[3]) +
+                             " COM orn: " + str(p.getEulerFromQuaternion(dynamics_info[4])) +
+                             " Inertia diagonal: " + str(dynamics_info[2]))
 
         if self._use_target_points:
             if len(self._target_link_point_list) != self._robot_scene.num_robots:
-                raise ValueError("Could not find a target link for each robot. Found " +
-                                 str(self._target_link_point_list))
+                raise ValueError("Could not find a target link named " + self._target_link_name +
+                                 " for each robot. Found " + str(self._target_link_point_list))
 
         # Visualize the distance between an obstacle and a selected point by a debug line
-        self._debugLine = None
+        self._debug_line = None
         self._debug_line_obstacle = 0
-        self._debugLineLink = 0
+        self._debug_line_link = 0
         self._debug_line_point = 0  # 0: closest point if observed, else: first observed point
+
+        visualize_starting_point_cartesian_range = False
+        if visualize_starting_point_cartesian_range:
+            self._visualize_cartesian_range(c_range=self._starting_point_cartesian_range, line_color=[1, 0, 0])
+        visualize_target_point_cartesian_range = False
+        if visualize_target_point_cartesian_range:
+            self._visualize_cartesian_range(c_range=self._target_point_cartesian_range, line_color=[0, 0, 1])
 
         # deactivate erroneous self-collisions simulation resulting from inaccurate collision meshes
         deactivate_self_collision_detection_link_name_pair_list = [["iiwa_link_5", "iiwa_link_7"]]
@@ -375,6 +403,29 @@ class ObstacleWrapperSim(ObstacleWrapperBase):
                     robot_indices=[j])
                 self._deactivate_self_collision_detection(link_name_a=link_name_pair_robot[0],
                                                           link_name_b=link_name_pair_robot[1])
+
+    def _visualize_cartesian_range(self, c_range, line_color, line_width=2):
+        # c_range: [[x_min, x_max], [y_min, y_max], [z_min, z_max]]
+        indices = [[0, 0, 0, 1, 0, 0],
+                   [0, 0, 0, 0, 1, 0],
+                   [0, 0, 0, 0, 0, 1],
+                   [0, 1, 0, 1, 1, 0],
+                   [0, 1, 0, 0, 1, 1],
+                   [0, 0, 1, 0, 1, 1],
+                   [0, 0, 1, 1, 0, 1],
+                   [0, 1, 1, 1, 1, 1],
+                   [1, 0, 0, 1, 1, 0],
+                   [1, 0, 0, 1, 0, 1],
+                   [1, 1, 0, 1, 1, 1],
+                   [1, 0, 1, 1, 1, 1]]
+
+        for client in [self._simulation_client_id, self._obstacle_client_id]:
+            if client is not None:
+                for index in indices:
+                    p.addUserDebugLine([c_range[0][index[0]], c_range[1][index[1]], c_range[2][index[2]]],
+                                       [c_range[0][index[3]], c_range[1][index[4]], c_range[2][index[5]]],
+                                       lineColorRGB=line_color, lineWidth=line_width,
+                                       physicsClientId=client)
 
     def is_obstacle_client_at_other_position(self):
         if self._obstacle_client_status == self.OBSTACLE_CLIENT_AT_OTHER_POSITION:
@@ -766,6 +817,7 @@ class ObstacleWrapperSim(ObstacleWrapperBase):
 
         while not valid_pos_found:
             valid_pos_found = True
+            self_collision_ignored_links = None
             reason = None
             attempts_counter += 1
             random_pos = np.random.uniform(np.array(self._robot_scene.joint_lower_limits)[joint_limit_indices_robot],
@@ -813,13 +865,13 @@ class ObstacleWrapperSim(ObstacleWrapperBase):
                             pos_obs, pos_rob, distance = self._compute_closest_points(
                                 p.getClosestPoints(bodyA=self._obstacle_list[i].id,
                                                    bodyB=self._robot_scene.robot_id,
-                                                   distance=10,
+                                                   distance=minimum_initial_distance_to_obstacles + 0.005,
                                                    linkIndexA=self._obstacle_list[
                                                        i].last_link,
                                                    linkIndexB=link_index,
                                                    physicsClientId=self._obstacle_client_id))
 
-                            if distance < minimum_initial_distance_to_obstacles:
+                            if distance is not None and distance < minimum_initial_distance_to_obstacles:
                                 valid_pos_found = False
                                 reason = "Collision: LinkIndex: " + str(link_index) + ", ObstacleIndex: " + str(i)
                                 break
@@ -837,15 +889,24 @@ class ObstacleWrapperSim(ObstacleWrapperBase):
                             pos_rob_a, pos_rob_b, distance = self._compute_closest_points(
                                 p.getClosestPoints(bodyA=self._robot_scene.robot_id,
                                                    bodyB=self._robot_scene.robot_id,
-                                                   distance=10,
+                                                   distance=minimum_distance_self_collision + 0.005,
                                                    linkIndexA=i,
                                                    linkIndexB=self._links[i].self_collision_links[j],
                                                    physicsClientId=self._obstacle_client_id))
 
-                            if distance < minimum_distance_self_collision:
-                                valid_pos_found = False
-                                reason = "Self-collision: " \
-                                         "[" + str(i) + ", " + str(self._links[i].self_collision_links[j]) + "]"
+                            if distance is not None and distance < minimum_distance_self_collision:
+                                if robot is not None and attempts_counter > attempts * 0.75 and (
+                                        (self._links[i].robot_index == robot and self._links[
+                                            self._links[i].self_collision_links[j]].closest_point_active) or (
+                                                self._links[self._links[i].self_collision_links[j]].robot_index
+                                                == robot and self._links[i].closest_point_active)):
+                                    self_collision_ignored_links = [i, self._links[i].self_collision_links[j]]
+                                    # ignore self-collisions when finding target point positions if attempts_counter
+                                    # is high and if the colliding link can be actively moved (closest_point_actice)
+                                else:
+                                    valid_pos_found = False
+                                    reason = "Self-collision: " \
+                                             "[" + str(i) + ", " + str(self._links[i].self_collision_links[j]) + "]"
                                 break
                     if not valid_pos_found:
                         break
@@ -864,8 +925,17 @@ class ObstacleWrapperSim(ObstacleWrapperBase):
                                                            np.array(self._torque_limits)[:, joint_limit_indices_robot])
 
                 if np.any(np.abs(normalized_joint_torques) > 1):
-                    valid_pos_found = False
-                    reason = "Torque violation: " + str(normalized_joint_torques)
+                    if robot is not None and attempts_counter > attempts / 2:
+                        # ignore torque violation to find at least a collision-free position for a target point
+                        logging.warning("Ignored torque violation to find a collision-free target point. Robot: %s, "
+                                        "Normalized torques: ", robot, normalized_joint_torques)
+                    else:
+                        valid_pos_found = False
+                        reason = "Torque violation: " + str(normalized_joint_torques)
+
+            if valid_pos_found and self_collision_ignored_links is not None:
+                logging.warning("Ignored self_collision to find a collision-free target point. Robot: %s, "
+                                "Ignored links: ", robot, self_collision_ignored_links)
 
             if not valid_pos_found and attempts is not None and reason is not None and attempts_counter >= attempts:
                 raise ValueError("Could not find a valid collision-free robot position. "
@@ -964,9 +1034,10 @@ class ObstacleWrapperSim(ObstacleWrapperBase):
                 maximum_torque_punishment = 1.0
                 minimum_distance_punishment = 1.0
             else:
-                minimum_distance_punishment = np.clip(
-                    (minimum_distance_max_threshold - self._braking_trajectory_minimum_distance) /
-                    (minimum_distance_max_threshold - self._closest_point_safety_distance), 0, 1) ** 2
+                if self._braking_trajectory_minimum_distance < minimum_distance_max_threshold:
+                    minimum_distance_punishment = np.clip(
+                        (minimum_distance_max_threshold - self._braking_trajectory_minimum_distance) /
+                        (minimum_distance_max_threshold - self._closest_point_safety_distance), 0, 1) ** 2
 
                 if self._check_braking_trajectory_torque_limits:
                     maximum_torque_punishment = np.clip((self._braking_trajectory_maximum_rel_torque
@@ -1152,7 +1223,7 @@ class ObstacleWrapperSim(ObstacleWrapperBase):
                                                linkIndexA=obstacle.last_link,
                                                linkIndexB=link_index,
                                                physicsClientId=self._obstacle_client_id))
-                        if obstacle_counter == self._debug_line_obstacle and j == self._debugLineLink and \
+                        if obstacle_counter == self._debug_line_obstacle and j == self._debug_line_link and \
                                 self._debug_line_point == 0:
                             pos_obs_debug = pos_obs
                             pos_rob_debug = pos_rob
@@ -1169,7 +1240,7 @@ class ObstacleWrapperSim(ObstacleWrapperBase):
                                                            radius_b=self._links[link_index].observed_points[
                                                                k].bounding_sphere_radius))
                                 debug_line_point = k + 1 if self._links[link_index].observe_closest_point else k
-                                if obstacle_counter == self._debug_line_obstacle and j == self._debugLineLink and \
+                                if obstacle_counter == self._debug_line_obstacle and j == self._debug_line_link and \
                                         self._debug_line_point == debug_line_point:
                                     pos_obs_debug, pos_rob_debug = \
                                         self._consider_bounding_sphere(pos_obs, pos_rob,
@@ -1237,19 +1308,19 @@ class ObstacleWrapperSim(ObstacleWrapperBase):
             if list(pos_obs_debug):
                 line_color = [1, 0, 0]
                 line_width = 2
-                if self._debugLine is not None:
-                    self._debugLine = p.addUserDebugLine(pos_obs_debug, pos_rob_debug, lineColorRGB=line_color,
-                                                         lineWidth=line_width,
-                                                         replaceItemUniqueId=self._debugLine,
-                                                         physicsClientId=self._simulation_client_id)
+                if self._debug_line is not None:
+                    self._debug_line = p.addUserDebugLine(pos_obs_debug, pos_rob_debug, lineColorRGB=line_color,
+                                                          lineWidth=line_width,
+                                                          replaceItemUniqueId=self._debug_line,
+                                                          physicsClientId=self._simulation_client_id)
                 else:
-                    self._debugLine = p.addUserDebugLine(pos_obs_debug, pos_rob_debug, lineColorRGB=line_color,
-                                                         lineWidth=line_width,
-                                                         physicsClientId=self._simulation_client_id)
+                    self._debug_line = p.addUserDebugLine(pos_obs_debug, pos_rob_debug, lineColorRGB=line_color,
+                                                          lineWidth=line_width,
+                                                          physicsClientId=self._simulation_client_id)
             else:
-                if self._debugLine is not None:
-                    p.removeUserDebugItem(self._debugLine, physicsClientId=self._simulation_client_id)
-                    self._debugLine = None
+                if self._debug_line is not None:
+                    p.removeUserDebugItem(self._debug_line, physicsClientId=self._simulation_client_id)
+                    self._debug_line = None
 
         if self._visualize_bounding_spheres:
             for j in range(len(self._links)):
@@ -1307,7 +1378,7 @@ class ObstacleWrapperSim(ObstacleWrapperBase):
         pos_a = [0, 0, 0]
         pos_b = [0, 0, 0]
         closest_index = 0
-        closest_distance = 0
+        closest_distance = None
         if len(list_of_closest_points) > 0:
             closest_distance = list_of_closest_points[0][8]
 
@@ -1374,9 +1445,6 @@ class ObstacleWrapperSim(ObstacleWrapperBase):
 
     def adapt_action(self, current_acc, current_vel, current_pos, target_acc,
                      acc_range_function, acc_braking_function, time_step_counter=0):
-
-        if self._obstacle_scene == 0:
-            return target_acc, False
 
         execute_braking_trajectory = False
         if self._use_braking_trajectory_method:
@@ -1486,7 +1554,7 @@ class ObstacleWrapperSim(ObstacleWrapperBase):
                             pos_obs, pos_rob, distance = self._compute_closest_points(
                                 p.getClosestPoints(bodyA=self._obstacle_list[i].id,
                                                    bodyB=self._robot_scene.robot_id,
-                                                   distance=10,
+                                                   distance=self._closest_point_maximum_relevant_distance,
                                                    linkIndexA=self._obstacle_list[
                                                        i].last_link,
                                                    linkIndexB=link_index,
@@ -1494,13 +1562,14 @@ class ObstacleWrapperSim(ObstacleWrapperBase):
 
                             safety_distance = self._links[link_index].closest_point_safety_distance
 
-                            if distance < self._braking_trajectory_minimum_distance:
-                                self._braking_trajectory_minimum_distance = distance
+                            if distance is not None:
+                                if distance < self._braking_trajectory_minimum_distance:
+                                    self._braking_trajectory_minimum_distance = distance
 
-                            if distance < safety_distance:
-                                collision_found = True
-                                affected_link_index_list.append(link_index)
-                                break
+                                if distance < safety_distance:
+                                    collision_found = True
+                                    affected_link_index_list.append(link_index)
+                                    break
 
                         if len(self._links[link_index].observed_points) > 0 \
                                 and self._check_braking_trajectory_observed_points:
@@ -1537,22 +1606,23 @@ class ObstacleWrapperSim(ObstacleWrapperBase):
                             pos_rob_a, pos_rob_b, distance = self._compute_closest_points(
                                 p.getClosestPoints(bodyA=self._robot_scene.robot_id,
                                                    bodyB=self._robot_scene.robot_id,
-                                                   distance=10,
+                                                   distance=self._closest_point_maximum_relevant_distance,
                                                    linkIndexA=i,
                                                    linkIndexB=self._links[i].self_collision_links[j],
                                                    physicsClientId=self._obstacle_client_id))
 
                             safety_distance = self._links[i].closest_point_safety_distance
 
-                            if distance < self._braking_trajectory_minimum_distance:
-                                self._braking_trajectory_minimum_distance = distance
+                            if distance is not None:
+                                if distance < self._braking_trajectory_minimum_distance:
+                                    self._braking_trajectory_minimum_distance = distance
 
-                            if distance < safety_distance:
-                                collision_found = True
-                                affected_link_index_list.append(i)
-                                affected_link_index_list.append(self._links[i].self_collision_links[j])
+                                if distance < safety_distance:
+                                    collision_found = True
+                                    affected_link_index_list.append(i)
+                                    affected_link_index_list.append(self._links[i].self_collision_links[j])
 
-                                break
+                                    break
 
                     if collision_found:
                         break
@@ -1683,11 +1753,11 @@ class ObstacleWrapperSim(ObstacleWrapperBase):
 
     @property
     def debug_line_link(self):
-        return self._debugLineLink
+        return self._debug_line_link
 
     @debug_line_link.setter
     def debug_line_link(self, val):
-        self._debugLineLink = val
+        self._debug_line_link = val
 
     @property
     def debug_line_point(self):

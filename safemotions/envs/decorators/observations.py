@@ -14,6 +14,11 @@ def normalize_joint_values(values, joint_limits):
     return list(np.array(values) / np.array(joint_limits))
 
 
+def _normalize_joint_values_min_max(values, joint_limit_ranges):
+    normalized_values = -1 + 2 * (values - joint_limit_ranges[0]) / (joint_limit_ranges[1] - joint_limit_ranges[0])
+    return list(normalized_values)
+
+
 class SafeObservation(ABC, SafeMotionsBase):
 
     def __init__(self,
@@ -74,7 +79,8 @@ class SafeObservation(ABC, SafeMotionsBase):
         curr_joint_acceleration = self._get_generated_trajectory_point(-1, key='accelerations')
         prev_joint_accelerations_rel = [normalize_joint_values(p, self._robot_scene.max_accelerations)
                                         for p in prev_joint_accelerations]
-        curr_joint_positions_rel_obs = normalize_joint_values(curr_joint_position, self._robot_scene.joint_upper_limits)
+        curr_joint_positions_rel_obs = _normalize_joint_values_min_max(curr_joint_position,
+                                                                       self.pos_limits_min_max)
         curr_joint_velocity_rel_obs = normalize_joint_values(curr_joint_velocity, self._robot_scene.max_velocities)
         curr_joint_acceleration_rel_obs = normalize_joint_values(curr_joint_acceleration,
                                                                  self._robot_scene.max_accelerations)
@@ -135,6 +141,8 @@ class SafeObservation(ABC, SafeMotionsBase):
         info['max']['joint_pos_violation'] = pos_violation
         info['max']['joint_vel_violation'] = vel_violation
         info['max']['joint_acc_violation'] = acc_violation
+
+        logging.debug("Observation %s: %s", self._episode_length, np.array(observation))
 
         return observation, info
 

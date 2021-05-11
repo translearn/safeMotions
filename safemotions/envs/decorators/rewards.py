@@ -17,7 +17,6 @@ class TargetPointReachingReward(ABC, SafeMotionsBase):
     ACTION_THRESHOLD = 0.9
     ACTION_MAX_PUNISHMENT = 1.0
     # braking trajectory collision penalty
-    MIN_DISTANCE_MAX_THRESHOLD = 0.05  # meter; a lower distance will lead to punishments
     MIN_DISTANCE_MAX_PUNISHMENT = 1.0
     # braking trajectory torque penalty
     MAX_TORQUE_MIN_THRESHOLD = 0.9  # rel. abs. torque threshold
@@ -27,11 +26,9 @@ class TargetPointReachingReward(ABC, SafeMotionsBase):
                  *vargs,
                  normalize_reward_to_frequency=False,
                  punish_action=False,
-                 punish_braking_trajectory_min_distance=False,
                  punish_braking_trajectory_max_torque=False,
                  action_punishment_min_threshold=ACTION_THRESHOLD,
                  action_max_punishment=ACTION_MAX_PUNISHMENT,
-                 braking_trajectory_min_distance_max_threshold=MIN_DISTANCE_MAX_THRESHOLD,
                  braking_trajectory_min_distance_max_punishment=MIN_DISTANCE_MAX_PUNISHMENT,
                  braking_trajectory_max_torque_min_threshold=MAX_TORQUE_MIN_THRESHOLD,
                  braking_trajectory_max_torque_max_punishment=MAX_TORQUE_MAX_PUNISHMENT,
@@ -47,9 +44,7 @@ class TargetPointReachingReward(ABC, SafeMotionsBase):
         self._action_punishment_min_threshold = action_punishment_min_threshold
         self._action_max_punishment = action_max_punishment
 
-        self._punish_braking_trajectory_min_distance = punish_braking_trajectory_min_distance
         self._punish_braking_trajectory_max_torque = punish_braking_trajectory_max_torque
-        self._min_distance_max_threshold = braking_trajectory_min_distance_max_threshold
         self._min_distance_max_punishment = braking_trajectory_min_distance_max_punishment
         self._max_torque_min_threshold = braking_trajectory_max_torque_min_threshold
         self._max_torque_max_punishment = braking_trajectory_max_torque_max_punishment
@@ -85,7 +80,7 @@ class TargetPointReachingReward(ABC, SafeMotionsBase):
             if self._punish_braking_trajectory_min_distance or self._punish_braking_trajectory_max_torque:
                 braking_trajectory_min_distance_punishment, braking_trajectory_max_torque_punishment = \
                     self._robot_scene.obstacle_wrapper.get_braking_trajectory_punishment(
-                        minimum_distance_max_threshold=self._min_distance_max_threshold,
+                        minimum_distance_max_threshold=self._braking_trajectory_min_distance_max_threshold,
                         maximum_torque_min_threshold=self._max_torque_min_threshold)
 
             reward = target_point_reward * self._target_point_reward_factor \
@@ -141,6 +136,8 @@ class TargetPointReachingReward(ABC, SafeMotionsBase):
             logging.warning("Jerk limit exceeded: %s", max_normalized_jerk)
 
         info['max']['joint_jerk_violation'] = jerk_violation
+
+        logging.debug("Reward %s: %s", self._episode_length - 1, reward)
 
         return reward, info
 

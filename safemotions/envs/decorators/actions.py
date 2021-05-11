@@ -105,6 +105,10 @@ class AccelerationPredictionBoundedJerkAccVelPos(ABC, SafeMotionsBase):
     def _get_norm_acc_range(self):
         return self._norm_acc_range
 
+    @property
+    def pos_limits_min_max(self):
+        return self._pos_limits_min_max
+
     def _reset_plotter(self, initial_joint_position):
         if self._plot_trajectory or self._save_trajectory_plot:
             self._trajectory_plotter.reset_plotter(initial_joint_position)

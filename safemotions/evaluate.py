@@ -96,9 +96,6 @@ def rollout_manually(agent, evaluation_dir):
                 next_obs, reward, done, _ = env.step(action)
 
             reward_total += reward
-            logging.debug("Observation %s: %s", steps, obs)
-            logging.debug("Action %s: %s", steps, action)
-            logging.debug("Reward %s: %s", steps, reward)
             obs = next_obs
 
         end_episode_timer = time.time()

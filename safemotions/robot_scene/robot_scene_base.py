@@ -45,8 +45,10 @@ class RobotSceneBase(object):
                  target_point_radius=0.05,
                  target_point_sequence=0,
                  target_point_reached_reward_bonus=0.0,
+                 punish_braking_trajectory_min_distance=False,
+                 braking_trajectory_min_distance_max_threshold=None,
                  no_self_collision=False,
-                 target_link_name="iiwa_link_7",
+                 target_link_name=None,
                  target_link_offset=None,
                  pos_limit_factor=1,
                  vel_limit_factor=1,
@@ -86,6 +88,9 @@ class RobotSceneBase(object):
         if robot_scene == 2:
             self._num_robots = 3
             robot_urdf = "three_robots"
+
+        if target_link_name is None:
+            target_link_name = "iiwa_link_7"
 
         for i in range(self._num_clients):
             if self._no_self_collision:
@@ -147,6 +152,9 @@ class RobotSceneBase(object):
                                    target_point_radius=target_point_radius,
                                    target_point_sequence=target_point_sequence,
                                    target_point_reached_reward_bonus=target_point_reached_reward_bonus,
+                                   punish_braking_trajectory_min_distance=punish_braking_trajectory_min_distance,
+                                   braking_trajectory_min_distance_max_threshold=
+                                   braking_trajectory_min_distance_max_threshold,
                                    target_link_name=target_link_name,
                                    target_link_offset=target_link_offset,
                                    visualize_bounding_spheres=visualize_bounding_spheres,
@@ -200,7 +208,8 @@ class RobotSceneBase(object):
             self._obstacle_wrapper.trajectory_time_step = self._trajectory_time_step
             self._obstacle_wrapper.torque_limits = np.array([-1 * self._max_torques, self._max_torques])
 
-        logging.info("Pos limits: %s", self._joint_upper_limits)
+        logging.info("Pos upper limits: %s", self._joint_upper_limits)
+        logging.info("Pos lower limits: %s", self._joint_lower_limits)
         logging.info("Vel limits: %s", self._max_velocities)
         logging.info("Acc limits: %s", self._max_accelerations)
         logging.info("Jerk limits: %s", self._max_jerk_linear_interpolation)

@@ -36,6 +36,7 @@ class SafeMotionsBase(gym.Env):
                  use_real_robot=False,
                  real_robot_debug_mode=False,
                  use_gui=False,
+                 switch_gui=False,
                  control_time_step=None,
                  use_control_rate_sleep=True,
                  use_thread_for_control_rate_sleep=False,
@@ -71,7 +72,9 @@ class SafeMotionsBase(gym.Env):
                  target_point_radius=0.05,
                  target_point_sequence=0,
                  target_point_reached_reward_bonus=0.0,
-                 target_link_name="iiwa_link_7",
+                 punish_braking_trajectory_min_distance=False,
+                 braking_trajectory_min_distance_max_threshold=None,
+                 target_link_name=None,
                  target_link_offset=None,
                  no_self_collision=False,
                  time_step_fraction_sleep_observation=0.0,
@@ -79,8 +82,6 @@ class SafeMotionsBase(gym.Env):
                  random_agent=False,
                  **kwargs):
 
-        if target_link_offset is None:
-            target_link_offset = [0, 0, 0.0]
         if position_controller_time_constants is None:
             position_controller_time_constants = [0.030, 0.030, 0.030, 0.030, 0.030, 0.030, 0.030]
         if seed is not None:
@@ -90,12 +91,14 @@ class SafeMotionsBase(gym.Env):
         else:
             self._evaluation_dir = os.path.join(evaluation_dir, "safe_motions_evaluation")
 
+        self._target_link_name = target_link_name
         self._use_real_robot = use_real_robot
         self._use_gui = use_gui
+        self._switch_gui = switch_gui
         self._use_control_rate_sleep = use_control_rate_sleep
         self._num_physic_clients = 0
 
-        if self._use_gui:
+        if self._use_gui and not self._switch_gui:
             self._simulation_client_id = p.connect(p.GUI)
             self._num_physic_clients += 1
         else:
@@ -105,7 +108,11 @@ class SafeMotionsBase(gym.Env):
             else:
                 self._simulation_client_id = None
 
-        self._obstacle_client_id = p.connect(p.DIRECT)
+        if self._use_gui and self._switch_gui:
+            self._obstacle_client_id = p.connect(p.GUI)
+        else:
+            self._obstacle_client_id = p.connect(p.DIRECT)
+
         self._num_physic_clients += 1
 
         if control_time_step is None:
@@ -135,6 +142,8 @@ class SafeMotionsBase(gym.Env):
         self._target_point_radius = target_point_radius
         self._target_point_sequence = target_point_sequence
         self._target_point_reached_reward_bonus = target_point_reached_reward_bonus
+        self._punish_braking_trajectory_min_distance = punish_braking_trajectory_min_distance
+        self._braking_trajectory_min_distance_max_threshold = braking_trajectory_min_distance_max_threshold
         self._no_self_collision = no_self_collision
         self._trajectory_time_step = online_trajectory_time_step
         self._position_controller_time_constants = position_controller_time_constants
@@ -149,7 +158,6 @@ class SafeMotionsBase(gym.Env):
         self._online_trajectory_duration = online_trajectory_duration
         self._eval_new_condition_counter = eval_new_condition_counter
         self._store_actions = store_actions
-        self._target_link_name = target_link_name
         self._target_link_offset = target_link_offset
         self._real_robot_debug_mode = real_robot_debug_mode
         self._random_agent = random_agent
@@ -230,6 +238,10 @@ class SafeMotionsBase(gym.Env):
                                   'target_point_radius': self._target_point_radius,
                                   'target_point_sequence': self._target_point_sequence,
                                   'target_point_reached_reward_bonus': self._target_point_reached_reward_bonus,
+                                  'punish_braking_trajectory_min_distance':
+                                      self._punish_braking_trajectory_min_distance,
+                                  'braking_trajectory_min_distance_max_threshold':
+                                      self._braking_trajectory_min_distance_max_threshold,
                                   'no_self_collision': self._no_self_collision,
                                   'target_link_name': self._target_link_name,
                                   'target_link_offset': self._target_link_offset,
@@ -358,6 +370,8 @@ class SafeMotionsBase(gym.Env):
 
         if self._store_actions:
             self._action_list.append(action)
+
+        logging.debug("Action %s: %s", self._episode_length - 1, action)
 
         controller_setpoints, obstacle_client_update_setpoints, action_info, robot_stopped = \
             self._compute_controller_setpoints_from_action(action)
@@ -593,6 +607,11 @@ class SafeMotionsBase(gym.Env):
     @property
     def trajectory_time_step(self):
         return self._trajectory_time_step
+
+    @property
+    @abstractmethod
+    def pos_limits_min_max(self):
+        pass
 
     @abstractmethod
     def _get_norm_acc_range(self):
