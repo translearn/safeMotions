@@ -18,8 +18,6 @@ from safemotions.envs.safe_motions_env import SafeMotionsEnv
 
 
 if __name__ == '__main__':
-    logging.basicConfig()
-    logging.getLogger().setLevel(logging.INFO)
     parser = argparse.ArgumentParser()
     parser.add_argument('--use_gui', action='store_true', default=False)
     parser.add_argument('--robot_scene', type=int, default=0)
@@ -40,8 +38,11 @@ if __name__ == '__main__':
     parser.add_argument('--target_point_cartesian_range_scene', type=int, default=None)
     parser.add_argument('--check_braking_trajectory_torque_limits', action='store_true', default=False)
     parser.add_argument('--plot_joint', type=json.loads, default=None)
-
+    parser.add_argument("--logging_level", default='INFO', choices=['DEBUG', 'INFO', 'WARNING', 'ERROR'])
     args = parser.parse_args()
+
+    logging.basicConfig()
+    logging.getLogger().setLevel(args.logging_level)
 
     seed = None  # None or an integer (for debugging purposes)
     if seed is not None:

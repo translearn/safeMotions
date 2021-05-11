@@ -145,8 +145,6 @@ def rollout_manually(agent, evaluation_dir):
 
 
 if __name__ == '__main__':
-    logging.basicConfig()
-    logging.getLogger().setLevel(logging.INFO)
     parser = argparse.ArgumentParser()
     parser.add_argument('--name', type=str, default=None,
                         help="The name of the evaluation.")
@@ -179,8 +177,11 @@ if __name__ == '__main__':
     parser.add_argument('--use_thread_for_control_rate_sleep', action='store_true', default=False)
     parser.add_argument('--control_time_step', type=float, default=None)
     parser.add_argument('--time_step_fraction_sleep_observation', type=float, default=None)
-
+    parser.add_argument("--logging_level", default='INFO', choices=['DEBUG', 'INFO', 'WARNING', 'ERROR'])
     args = parser.parse_args()
+
+    logging.basicConfig()
+    logging.getLogger().setLevel(args.logging_level)
 
     if args.evaluation_dir is None:
         evaluation_dir = os.path.join(Path.home(), "safe_motions_evaluation")

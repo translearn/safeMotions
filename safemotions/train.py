@@ -137,8 +137,6 @@ def _make_env_config():
 
 
 if __name__ == '__main__':
-    logging.basicConfig()
-    logging.getLogger().setLevel(logging.INFO)
     config = {
         'model': {
             'conv_filters': None,
@@ -213,7 +211,12 @@ if __name__ == '__main__':
     parser.add_argument('--target_link_offset', type=json.loads, default="[0, 0, 0.126]")
     parser.add_argument('--target_point_reward_factor', type=float, default=1.0)
     parser.add_argument('--obstacle_use_computed_actual_values', action='store_true', default=False)
+    parser.add_argument("--logging_level", default='INFO', choices=['DEBUG', 'INFO', 'WARNING', 'ERROR'])
     args = parser.parse_args()
+
+    logging.basicConfig()
+    logging.getLogger().setLevel(args.logging_level)
+
     env_name = "SafeMotionsEnv"
     tune.register_env(env_name, lambda config_args: SafeMotionsEnv(**config_args))
     config.update(env=env_name)
