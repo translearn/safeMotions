@@ -25,6 +25,8 @@ if __name__ == '__main__':
     parser.add_argument('--use_gui', action='store_true', default=False)
     parser.add_argument('--robot_scene', type=int, default=0)
     parser.add_argument('--obstacle_scene', type=int, default=None)
+    parser.add_argument('--online_trajectory_duration', type=float, default=8.0)
+    parser.add_argument('--online_trajectory_time_step', type=float, default=0.1)
     parser.add_argument('--use_control_rate_sleep', action='store_true', default=False)
     parser.add_argument('--use_thread_for_control_rate_sleep', action='store_true', default=False)
     parser.add_argument('--obstacle_use_computed_actual_values', action='store_true', default=False)
@@ -42,6 +44,7 @@ if __name__ == '__main__':
     parser.add_argument('--check_braking_trajectory_torque_limits', action='store_true', default=False)
     parser.add_argument('--plot_joint', type=json.loads, default=None)
     parser.add_argument("--logging_level", default='INFO', choices=['DEBUG', 'INFO', 'WARNING', 'ERROR'])
+    parser.add_argument('--episodes', type=int, default=20)
     parser.add_argument('--render', action='store_true', default=False,
                         help="If set, videos of the generated episodes are recorded.")
     parser.add_argument("--renderer", default='opengl', choices=['opengl', 'egl', 'cpu'])
@@ -130,8 +133,8 @@ if __name__ == '__main__':
     # time constants in seconds given per joint; calculate the expected actual values by
     # modelling the behaviour of the trajectory controller without reading actual values from sensor data
 
-    online_trajectory_duration = 8  # time in seconds
-    online_trajectory_time_step = 0.1  # in seconds
+    online_trajectory_duration = args.online_trajectory_duration  # duration of each episode in seconds
+    online_trajectory_time_step = args.online_trajectory_time_step  # time step between network predictions in seconds
 
     if args.obstacle_scene is None:
         # 0: no obstacles, 1: table only; 2: Table + walls, 3: table + walls + monitor (no pivot),
@@ -270,7 +273,7 @@ if __name__ == '__main__':
                       seed=seed, random_agent=random_agent)
 
     env = SafeMotionsEnv(**env_config)
-    num_episodes = 20
+    num_episodes = args.episodes
 
     for _ in range(num_episodes):
         done = False
