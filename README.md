@@ -14,7 +14,7 @@ The package can be installed by running
 
 To generate a random trajectory with a single robot run
 
-    python -m safemotions.random_agent --use_gui
+    python -m safemotions.random_agent --use_gui --check_braking_trajectory_torque_limits --torque_limit_factor=0.6 --plot_trajectory
 
 For a demonstration scenario with two robots run
 
