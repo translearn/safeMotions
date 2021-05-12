@@ -21,13 +21,16 @@ from ray import tune
 from pathlib import Path
 current_dir = os.path.dirname(os.path.abspath(inspect.getfile(inspect.currentframe())))
 sys.path.append(os.path.dirname(current_dir))
-from safemotions.envs.safe_motions_env import SafeMotionsEnv
 
 # Termination reason
 TERMINATION_UNSET = -1
 TERMINATION_SUCCESS = 0
 TERMINATION_JOINT_LIMITS = 1
 TERMINATION_TRAJECTORY_LENGTH = 2
+
+RENDERER = {'opengl': 0,
+            'egl': 1,
+            'cpu': 2}
 
 
 def np_encoder(object):
@@ -153,9 +156,6 @@ if __name__ == '__main__':
                         help="Path to the checkpoint for evaluation.")
     parser.add_argument('--episodes', type=int, default=20,
                         help="The number of episodes for evaluation.")
-    parser.add_argument('--render', action='store_true', default=False,
-                        help="Whether or not to render videos of the rollouts.")
-    parser.add_argument('--camera_angle', type=int, default=0)
     parser.add_argument('--use_real_robot', action='store_true', default=None)
     parser.add_argument('--real_robot_debug_mode', dest='real_robot_debug_mode', action='store_true', default=False)
     parser.add_argument('--use_gui', action='store_true', default=False)
@@ -178,10 +178,24 @@ if __name__ == '__main__':
     parser.add_argument('--control_time_step', type=float, default=None)
     parser.add_argument('--time_step_fraction_sleep_observation', type=float, default=None)
     parser.add_argument("--logging_level", default='INFO', choices=['DEBUG', 'INFO', 'WARNING', 'ERROR'])
+    parser.add_argument('--render', action='store_true', default=False,
+                        help="If set, videos of the generated episodes are recorded.")
+    parser.add_argument("--renderer", default='opengl', choices=['opengl', 'egl', 'cpu'])
+    parser.add_argument('--camera_angle', type=int, default=0)
+    parser.add_argument('--video_frame_rate', type=float, default=None)
+    parser.add_argument('--video_height', type=int, default=None)
+    parser.add_argument('--video_dir', type=str, default=None)
+
     args = parser.parse_args()
 
     logging.basicConfig()
     logging.getLogger().setLevel(args.logging_level)
+
+    if args.render and args.renderer == 'egl':
+        os.environ['MESA_GL_VERSION_OVERRIDE'] = '3.3'
+        os.environ['MESA_GLSL_VERSION_OVERRIDE'] = '330'
+
+    from safemotions.envs.safe_motions_env import SafeMotionsEnv
 
     if args.evaluation_dir is None:
         evaluation_dir = os.path.join(Path.home(), "safe_motions_evaluation")
@@ -215,6 +229,10 @@ if __name__ == '__main__':
     if args.render:
         env_config.update(render_video=True)
         env_config['camera_angle'] = args.camera_angle
+        env_config['renderer'] = RENDERER[args.renderer]
+        env_config['video_frame_rate'] = args.video_frame_rate
+        env_config['video_height'] = args.video_height
+        env_config['video_dir'] = args.video_dir
     else:
         env_config.update(render_video=False)
 

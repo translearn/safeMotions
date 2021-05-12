@@ -14,7 +14,10 @@ import sys
 import inspect
 import json
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(inspect.getfile(inspect.currentframe())))))
-from safemotions.envs.safe_motions_env import SafeMotionsEnv
+
+RENDERER = {'opengl': 0,
+            'egl': 1,
+            'cpu': 2}
 
 
 if __name__ == '__main__':
@@ -39,10 +42,23 @@ if __name__ == '__main__':
     parser.add_argument('--check_braking_trajectory_torque_limits', action='store_true', default=False)
     parser.add_argument('--plot_joint', type=json.loads, default=None)
     parser.add_argument("--logging_level", default='INFO', choices=['DEBUG', 'INFO', 'WARNING', 'ERROR'])
+    parser.add_argument('--render', action='store_true', default=False,
+                        help="If set, videos of the generated episodes are recorded.")
+    parser.add_argument("--renderer", default='opengl', choices=['opengl', 'egl', 'cpu'])
+    parser.add_argument('--camera_angle', type=int, default=0)
+    parser.add_argument('--video_frame_rate', type=float, default=None)
+    parser.add_argument('--video_height', type=int, default=None)
+    parser.add_argument('--video_dir', type=str, default=None)
     args = parser.parse_args()
 
     logging.basicConfig()
     logging.getLogger().setLevel(args.logging_level)
+
+    if args.render and args.renderer == 'egl':
+        os.environ['MESA_GL_VERSION_OVERRIDE'] = '3.3'
+        os.environ['MESA_GLSL_VERSION_OVERRIDE'] = '330'
+
+    from safemotions.envs.safe_motions_env import SafeMotionsEnv
 
     seed = None  # None or an integer (for debugging purposes)
     if seed is not None:
@@ -65,9 +81,9 @@ if __name__ == '__main__':
     # use computed instead of measured actual values to update the obstacle wrapper -> can be computed in advance
     # -> required to use a separate thread for real-time execution
 
-    render_video = False
+    render_video = args.render
     # whether to render a video
-    camera_angle = 1
+    camera_angle = args.camera_angle
     # camera_angle for video rendering; predefined settings are defined in video_recording.py
 
     pos_limit_factor = args.pos_limit_factor
@@ -194,6 +210,10 @@ if __name__ == '__main__':
                       use_thread_for_control_rate_sleep=use_thread_for_control_rate_sleep,
                       control_time_step=control_time_step,
                       render_video=render_video, camera_angle=camera_angle,
+                      renderer=RENDERER[args.renderer],
+                      video_frame_rate=args.video_frame_rate,
+                      video_height=args.video_height,
+                      video_dir=args.video_dir,
                       use_real_robot=use_real_robot,
                       real_robot_debug_mode=real_robot_debug_mode,
                       pos_limit_factor=pos_limit_factor,

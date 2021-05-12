@@ -12,7 +12,7 @@ from safemotions.envs.safe_motions_base import SafeMotionsBase
 
 RENDER_MODES = ["human", "rgb_array"]
 VIDEO_FRAME_RATE = 60
-VIDEO_WIDTH = 1920
+ASPECT_RATIO = 16/9
 VIDEO_HEIGHT = 1080
 
 
@@ -85,11 +85,10 @@ def compute_view_matrix(camera_angle=0):
 
 def compute_projection_matrix():
     fov = 90
-    aspect_ratio = VIDEO_WIDTH / VIDEO_HEIGHT
     near_distance = 0.1
     far_distance = 100
 
-    return p.computeProjectionMatrixFOV(fov, aspect_ratio, near_distance, far_distance)
+    return p.computeProjectionMatrixFOV(fov, ASPECT_RATIO, near_distance, far_distance)
 
 
 class VideoRecordingManager(ABC, SafeMotionsBase):
@@ -98,24 +97,33 @@ class VideoRecordingManager(ABC, SafeMotionsBase):
                  *vargs,
                  render_video=False,
                  extra_render_modes=None,
-                 video_frame_rate=VIDEO_FRAME_RATE,
+                 video_frame_rate=None,
+                 video_height=VIDEO_HEIGHT,
+                 video_dir=None,
                  camera_angle=0,
                  **kwargs):
         super().__init__(*vargs, **kwargs)
 
         # video recording settings
+        if video_frame_rate is None:
+            video_frame_rate = VIDEO_FRAME_RATE
+        if video_height is None:
+            video_height = VIDEO_HEIGHT
         self._video_recorder = None
         self._render_video = render_video
         time_stamp = datetime.datetime.now().strftime('%Y%m%dT%H%M%S')
-        self._video_dir = os.path.join(self._evaluation_dir, self.__class__.__name__, experiment_name, time_stamp)
+        if video_dir is None:
+            self._video_dir = os.path.join(self._evaluation_dir, self.__class__.__name__, experiment_name, time_stamp)
+        else:
+            self._video_dir = video_dir
         self._video_base_path = None
         self._render_modes = RENDER_MODES.copy()
         if extra_render_modes:
             self._render_modes += extra_render_modes
-        self._video_frame_rate = video_frame_rate
-        self._sim_steps_per_frame = int(1 / (self._video_frame_rate * self._control_time_step))
-        self._video_height = VIDEO_HEIGHT
-        self._video_width = VIDEO_WIDTH
+        self._sim_steps_per_frame = int(1 / (video_frame_rate * self._control_time_step))
+        self._video_frame_rate = 1 / (self._sim_steps_per_frame * self._control_time_step)
+        self._video_height = video_height
+        self._video_width = int(ASPECT_RATIO * self._video_height)
         self._camera_angle = camera_angle
         self._view_matrix = compute_view_matrix(self._camera_angle)
         self._projection_matrix = compute_projection_matrix()
@@ -158,7 +166,7 @@ class VideoRecordingManager(ABC, SafeMotionsBase):
         super()._prepare_for_end_of_episode()
 
         if self._render_video:
-            for _ in range(self._video_frame_rate):
+            for _ in range(int(self._video_frame_rate)):
                 self._capture_frame_with_video_recorder()
             if self._video_recorder:
                 self._close_video_recorder()
@@ -178,7 +186,7 @@ class VideoRecordingManager(ABC, SafeMotionsBase):
         metadata = {'episode_id': episode_id}
         self._video_recorder = VideoRecorder(self, base_path=self._video_base_path, metadata=metadata, enabled=True)
 
-        for _ in range(self._video_frame_rate):
+        for _ in range(int(self._video_frame_rate)):
             self._capture_frame_with_video_recorder()
 
     def _close_video_recorder(self):
