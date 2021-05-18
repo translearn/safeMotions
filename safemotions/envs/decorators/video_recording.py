@@ -95,7 +95,6 @@ class VideoRecordingManager(ABC, SafeMotionsBase):
     def __init__(self,
                  experiment_name,
                  *vargs,
-                 render_video=False,
                  extra_render_modes=None,
                  video_frame_rate=None,
                  video_height=VIDEO_HEIGHT,
@@ -110,7 +109,6 @@ class VideoRecordingManager(ABC, SafeMotionsBase):
         if video_height is None:
             video_height = VIDEO_HEIGHT
         self._video_recorder = None
-        self._render_video = render_video
         time_stamp = datetime.datetime.now().strftime('%Y%m%dT%H%M%S')
         if video_dir is None:
             self._video_dir = os.path.join(self._evaluation_dir, self.__class__.__name__, experiment_name, time_stamp)

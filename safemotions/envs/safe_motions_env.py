@@ -4,8 +4,6 @@
 # OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 import json
-import logging
-
 import numpy as np
 import os
 import inspect
@@ -19,6 +17,7 @@ from safemotions.envs.decorators import actions, observations, rewards, video_re
 
 project_dir = os.path.dirname(os.path.dirname(os.path.abspath(inspect.getfile(inspect.currentframe()))))
 
+# Renderer
 OPENGL_GUI_RENDERER = 0
 OPENGL_EGL_RENDERER = 1
 CPU_TINY_RENDERER = 2
@@ -30,28 +29,11 @@ class SafeMotionsEnv(actions.AccelerationPredictionBoundedJerkAccVelPos,
                      video_recording.VideoRecordingManager):
     def __init__(self,
                  experiment_name,
-                 renderer=OPENGL_GUI_RENDERER,
                  *vargs,
                  **kwargs):
         super().__init__(experiment_name, *vargs, **kwargs)
         self._experiment_name = experiment_name
         self._timestamp = datetime.datetime.now().strftime('%Y%m%dT%H%M%S')
-        self._renderer = renderer
-        if self._renderer == OPENGL_GUI_RENDERER and self._render_video and not self._use_gui:
-            raise ValueError("renderer==OPENGL_GUI_RENDERER requires use_gui==True")
-        if self._renderer == OPENGL_GUI_RENDERER or self._renderer == OPENGL_EGL_RENDERER:
-            self._pybullet_renderer = p.ER_BULLET_HARDWARE_OPENGL
-            if self._renderer == OPENGL_EGL_RENDERER and self._render_video:
-                import pkgutil
-                egl_renderer = pkgutil.get_loader('eglRenderer')
-                logging.warning("The usage of the egl renderer might lead to a segmentation fault on systems without "
-                                "a GPU")
-                if egl_renderer:
-                    p.loadPlugin(egl_renderer.get_filename(), "_eglRendererPlugin")
-                else:
-                    p.loadPlugin("eglRendererPlugin")
-        else:
-            self._pybullet_renderer = p.ER_TINY_RENDERER
 
     def render(self, mode="human"):
         if mode == "human":
@@ -60,7 +42,10 @@ class SafeMotionsEnv(actions.AccelerationPredictionBoundedJerkAccVelPos,
             (_, _, image, _, _) = p.getCameraImage(width=self._video_width, height=self._video_height,
                                                    renderer=self._pybullet_renderer,
                                                    viewMatrix=self._view_matrix,
-                                                   projectionMatrix=self._projection_matrix)
+                                                   projectionMatrix=self._projection_matrix,
+                                                   shadow=0,
+                                                   lightDirection=[1, 1, 1],
+                                                   flags=p.ER_NO_SEGMENTATION_MASK)
             image = np.reshape(image, (self._video_height, self._video_width, 4))
             image = np.uint8(image[:, :, :3])
 

@@ -29,6 +29,11 @@ TERMINATION_SUCCESS = 0
 TERMINATION_JOINT_LIMITS = 1
 TERMINATION_TRAJECTORY_LENGTH = 2
 
+# Renderer
+OPENGL_GUI_RENDERER = 0
+OPENGL_EGL_RENDERER = 1
+CPU_TINY_RENDERER = 2
+
 
 class SafeMotionsBase(gym.Env):
     def __init__(self,
@@ -80,6 +85,8 @@ class SafeMotionsBase(gym.Env):
                  time_step_fraction_sleep_observation=0.0,
                  seed=None,
                  random_agent=False,
+                 render_video=False,
+                 renderer=OPENGL_GUI_RENDERER,
                  **kwargs):
 
         if position_controller_time_constants is None:
@@ -97,6 +104,8 @@ class SafeMotionsBase(gym.Env):
         self._switch_gui = switch_gui
         self._use_control_rate_sleep = use_control_rate_sleep
         self._num_physic_clients = 0
+        self._render_video = render_video
+        self._renderer = renderer
 
         if self._use_gui and not self._switch_gui:
             self._simulation_client_id = p.connect(p.GUI)
@@ -107,6 +116,28 @@ class SafeMotionsBase(gym.Env):
                 self._num_physic_clients += 1
             else:
                 self._simulation_client_id = None
+
+        if self._simulation_client_id is not None:
+            if self._renderer == OPENGL_GUI_RENDERER and self._render_video and not self._use_gui:
+                raise ValueError("renderer==OPENGL_GUI_RENDERER requires use_gui==True")
+            if self._renderer == OPENGL_GUI_RENDERER or self._renderer == OPENGL_EGL_RENDERER:
+                self._pybullet_renderer = p.ER_BULLET_HARDWARE_OPENGL
+                if self._renderer == OPENGL_EGL_RENDERER and self._render_video:
+                    import pkgutil
+                    egl_renderer = pkgutil.get_loader('eglRenderer')
+                    logging.warning(
+                        "The usage of the egl renderer might lead to a segmentation fault on systems without "
+                        "a GPU")
+                    if egl_renderer:
+                        p.loadPlugin(egl_renderer.get_filename(), "_eglRendererPlugin")
+                    else:
+                        p.loadPlugin("eglRendererPlugin")
+                    p.configureDebugVisualizer(p.COV_ENABLE_RENDERING, 0)
+                    p.configureDebugVisualizer(p.COV_ENABLE_GUI, 0)
+            else:
+                self._pybullet_renderer = p.ER_TINY_RENDERER
+        else:
+            self._pybullet_renderer = None
 
         if self._use_gui and self._switch_gui:
             self._obstacle_client_id = p.connect(p.GUI)
