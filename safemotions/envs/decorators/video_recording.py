@@ -14,6 +14,10 @@ RENDER_MODES = ["human", "rgb_array"]
 VIDEO_FRAME_RATE = 60
 ASPECT_RATIO = 16/9
 VIDEO_HEIGHT = 1080
+# Renderer
+OPENGL_GUI_RENDERER = 0
+OPENGL_EGL_RENDERER = 1
+CPU_TINY_RENDERER = 2
 
 
 def compute_view_matrix(camera_angle=0):
@@ -100,14 +104,23 @@ class VideoRecordingManager(ABC, SafeMotionsBase):
                  video_height=VIDEO_HEIGHT,
                  video_dir=None,
                  camera_angle=0,
+                 render_video=False,
+                 renderer=OPENGL_GUI_RENDERER,
                  **kwargs):
-        super().__init__(*vargs, **kwargs)
 
         # video recording settings
         if video_frame_rate is None:
             video_frame_rate = VIDEO_FRAME_RATE
         if video_height is None:
             video_height = VIDEO_HEIGHT
+
+        self._video_height = video_height
+        self._video_width = int(ASPECT_RATIO * self._video_height)
+        self._render_video = render_video
+        self._renderer = renderer
+        
+        super().__init__(*vargs, **kwargs)
+
         self._video_recorder = None
         time_stamp = datetime.datetime.now().strftime('%Y%m%dT%H%M%S')
         if video_dir is None:
@@ -120,12 +133,13 @@ class VideoRecordingManager(ABC, SafeMotionsBase):
             self._render_modes += extra_render_modes
         self._sim_steps_per_frame = int(1 / (video_frame_rate * self._control_time_step))
         self._video_frame_rate = 1 / (self._sim_steps_per_frame * self._control_time_step)
-        self._video_height = video_height
-        self._video_width = int(ASPECT_RATIO * self._video_height)
+        
         self._camera_angle = camera_angle
         self._view_matrix = compute_view_matrix(self._camera_angle)
         self._projection_matrix = compute_projection_matrix()
         self._sim_step_counter = None
+
+        
 
     @property
     def metadata(self):

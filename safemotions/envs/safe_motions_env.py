@@ -43,8 +43,7 @@ class SafeMotionsEnv(actions.AccelerationPredictionBoundedJerkAccVelPos,
                                                    renderer=self._pybullet_renderer,
                                                    viewMatrix=self._view_matrix,
                                                    projectionMatrix=self._projection_matrix,
-                                                   shadow=0,
-                                                   lightDirection=[1, 1, 1],
+                                                   shadow=0, lightDirection=[-20, -0.5, 150],
                                                    flags=p.ER_NO_SEGMENTATION_MASK)
             image = np.reshape(image, (self._video_height, self._video_width, 4))
             image = np.uint8(image[:, :, :3])

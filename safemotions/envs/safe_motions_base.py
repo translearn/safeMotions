@@ -85,8 +85,6 @@ class SafeMotionsBase(gym.Env):
                  time_step_fraction_sleep_observation=0.0,
                  seed=None,
                  random_agent=False,
-                 render_video=False,
-                 renderer=OPENGL_GUI_RENDERER,
                  **kwargs):
 
         if position_controller_time_constants is None:
@@ -104,18 +102,23 @@ class SafeMotionsBase(gym.Env):
         self._switch_gui = switch_gui
         self._use_control_rate_sleep = use_control_rate_sleep
         self._num_physic_clients = 0
-        self._render_video = render_video
-        self._renderer = renderer
+
+        if self._render_video:
+            pybullet_options = "--width={} --height={}".format(self._video_width, self._video_height)
+        else:
+            pybullet_options = ""
 
         if self._use_gui and not self._switch_gui:
-            self._simulation_client_id = p.connect(p.GUI)
+            self._simulation_client_id = p.connect(p.GUI, options=pybullet_options)
             self._num_physic_clients += 1
         else:
             if not self._use_real_robot:
-                self._simulation_client_id = p.connect(p.DIRECT)
+                self._simulation_client_id = p.connect(p.DIRECT, options=pybullet_options)
                 self._num_physic_clients += 1
             else:
                 self._simulation_client_id = None
+        
+        self._egl_plugin = None
 
         if self._simulation_client_id is not None:
             if self._renderer == OPENGL_GUI_RENDERER and self._render_video and not self._use_gui:
@@ -129,11 +132,9 @@ class SafeMotionsBase(gym.Env):
                         "The usage of the egl renderer might lead to a segmentation fault on systems without "
                         "a GPU")
                     if egl_renderer:
-                        p.loadPlugin(egl_renderer.get_filename(), "_eglRendererPlugin")
+                        self._egl_plugin = p.loadPlugin(egl_renderer.get_filename(), "_eglRendererPlugin")
                     else:
-                        p.loadPlugin("eglRendererPlugin")
-                    p.configureDebugVisualizer(p.COV_ENABLE_RENDERING, 0)
-                    p.configureDebugVisualizer(p.COV_ENABLE_GUI, 0)
+                        self._egl_plugin = p.loadPlugin("eglRendererPlugin")
             else:
                 self._pybullet_renderer = p.ER_TINY_RENDERER
         else:
@@ -572,6 +573,8 @@ class SafeMotionsBase(gym.Env):
         return movement_info
 
     def close(self):
+        if self._egl_plugin is not None:
+            p.unloadPlugin(self._egl_plugin)
         self._robot_scene.disconnect()
 
     @abstractmethod
