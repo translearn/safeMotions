@@ -102,10 +102,12 @@ if __name__ == '__main__':
 
     if robot_scene == 0:
         num_robots = 1
-    if robot_scene == 1:
+    elif robot_scene == 1:
         num_robots = 2
-    if robot_scene == 2:
+    elif robot_scene == 2:
         num_robots = 3
+    else:
+        raise ValueError("robot_scene {} not defined".format(robot_scene))
 
     plot_trajectory = args.plot_trajectory
     save_trajectory_plot = False

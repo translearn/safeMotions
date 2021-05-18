@@ -130,7 +130,7 @@ class SafeMotionsBase(gym.Env):
                     egl_renderer = pkgutil.get_loader('eglRenderer')
                     logging.warning(
                         "The usage of the egl renderer might lead to a segmentation fault on systems without "
-                        "a GPU")
+                        "a GPU.")
                     if egl_renderer:
                         self._egl_plugin = p.loadPlugin(egl_renderer.get_filename(), "_eglRendererPlugin")
                     else:

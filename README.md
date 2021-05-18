@@ -10,7 +10,7 @@ The package can be installed by running
     pip install safemotions  # for safe trajectory generation only or
     pip install safemotions[train]  # to include dependencies required to train and evaluate neural networks.
 
-## Trajectory generation
+## Trajectory generation [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/translearn/notebooks/blob/main/safemotions_random_agent_demo.ipynb)
 
 To generate a random trajectory with a single robot run
 

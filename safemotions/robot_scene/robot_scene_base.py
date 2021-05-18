@@ -208,8 +208,8 @@ class RobotSceneBase(object):
             self._obstacle_wrapper.trajectory_time_step = self._trajectory_time_step
             self._obstacle_wrapper.torque_limits = np.array([-1 * self._max_torques, self._max_torques])
 
-        logging.info("Pos upper limits: %s", self._joint_upper_limits)
-        logging.info("Pos lower limits: %s", self._joint_lower_limits)
+        logging.info("Pos upper limits: %s", np.array(self._joint_upper_limits))
+        logging.info("Pos lower limits: %s", np.array(self._joint_lower_limits))
         logging.info("Vel limits: %s", self._max_velocities)
         logging.info("Acc limits: %s", self._max_accelerations)
         logging.info("Jerk limits: %s", self._max_jerk_linear_interpolation)

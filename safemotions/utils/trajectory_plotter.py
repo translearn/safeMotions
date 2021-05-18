@@ -748,8 +748,8 @@ class TrajectoryPlotter:
                                        actual_torque_plot[:actual_time_torque_max_index], color=color_actual,
                                        linestyle=line_style_actual_value, label=label)
 
+        ax[-1].legend(loc='lower right')
         for i in range(len(ax)):
-            ax[i].legend(loc='lower right')
             if self._plot_time_limits is None:
                 ax[i].set_xlim([0, self._time[-1]])
             else:

@@ -371,10 +371,10 @@ class ObstacleWrapperSim(ObstacleWrapperBase):
 
             if print_link_infos:
                 dynamics_info = p.getDynamicsInfo(self._robot_scene.robot_id, i)
-                logging.info("Link " + str(i) + " " + link_name_list[i] + " Mass: " + str(dynamics_info[0]) +
-                             " COM pos: " + str(dynamics_info[3]) +
-                             " COM orn: " + str(p.getEulerFromQuaternion(dynamics_info[4])) +
-                             " Inertia diagonal: " + str(dynamics_info[2]))
+                logging.debug("Link " + str(i) + " " + link_name_list[i] + " Mass: " + str(dynamics_info[0]) +
+                              " COM pos: " + str(dynamics_info[3]) +
+                              " COM orn: " + str(p.getEulerFromQuaternion(dynamics_info[4])) +
+                              " Inertia diagonal: " + str(dynamics_info[2]))
 
         if self._use_target_points:
             if len(self._target_link_point_list) != self._robot_scene.num_robots:
