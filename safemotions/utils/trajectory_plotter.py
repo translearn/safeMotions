@@ -539,10 +539,9 @@ class TrajectoryPlotter:
                 ax[ax_torque].set_visible(True)
                 plt.subplots_adjust(left=0.05, bottom=0.04, right=0.95, top=0.94, wspace=0.15, hspace=0.15)
 
-        # Positions
         for i in range(len(ax)):
             ax[i].grid(True)
-            ax[i].set_xlabel('Time [s]')
+        ax[-1].set_xlabel('Time [s]')
 
         if ax_pos is not None:
             ax[ax_pos].set_ylabel('Position')
@@ -748,7 +747,13 @@ class TrajectoryPlotter:
                                        actual_torque_plot[:actual_time_torque_max_index], color=color_actual,
                                        linestyle=line_style_actual_value, label=label)
 
-        ax[-1].legend(loc='lower right')
+        if len(ax) > 1:
+            # use solid lines for the legend, although the torques in ax[-1] are visualized with dashed lines
+            handles, labels = ax[-2].get_legend_handles_labels()
+            ax[-1].legend(handles, labels, loc='lower right')
+        else:
+            ax[-1].legend(loc='lower right')
+
         for i in range(len(ax)):
             if self._plot_time_limits is None:
                 ax[i].set_xlim([0, self._time[-1]])

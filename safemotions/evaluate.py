@@ -141,7 +141,7 @@ def rollout_manually(agent, evaluation_dir):
 
     env.close()
     end = time.time()
-    logging.info("Computed %s episodes in %s seconds.", len(episode_computation_time_list), end - start)
+    logging.info("Computed %s episode(s) in %s seconds.", len(episode_computation_time_list), end - start)
     logging.info("Mean computation time: %s seconds, Max computation time: %s seconds.",
                  np.mean(episode_computation_time_list),
                  np.max(episode_computation_time_list))
@@ -308,7 +308,7 @@ if __name__ == '__main__':
                       lambda config_args: SafeMotionsEnv(**config_args))
     args.env = checkpoint_config['env']
     args.out = None
-    ray.init()
+    ray.init(webui_host="127.0.0.1", ignore_reinit_error=True)
     cls = rollout.get_trainable_cls(args.run)
     agent = cls(env=args.env, config=args.config)
     agent.restore(checkpoint_path)
