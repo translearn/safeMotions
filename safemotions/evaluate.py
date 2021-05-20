@@ -156,6 +156,7 @@ if __name__ == '__main__':
                         help="Path to the checkpoint for evaluation.")
     parser.add_argument('--episodes', type=int, default=20,
                         help="The number of episodes for evaluation.")
+    parser.add_argument('--num_workers', type=int, default=None)
     parser.add_argument('--use_real_robot', action='store_true', default=None)
     parser.add_argument('--real_robot_debug_mode', dest='real_robot_debug_mode', action='store_true', default=False)
     parser.add_argument('--use_gui', action='store_true', default=False)
@@ -295,7 +296,11 @@ if __name__ == '__main__':
     if args.control_time_step is not None:
         env_config['control_time_step'] = args.control_time_step
 
-    checkpoint_config['num_workers'] = 0
+    if args.num_workers is not None and args.num_workers > 1:
+        checkpoint_config['num_workers'] = args.num_workers
+    else:
+        checkpoint_config['num_workers'] = 0
+
     checkpoint_config['env_config'] = env_config
 
     if args.seed is not None:
