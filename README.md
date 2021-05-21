@@ -1,4 +1,8 @@
-# Learning Collision-free and Torque-limited Robot Trajectories based on Alternative Safe Behaviors
+# Learning Collision-free and Torque-limited Robot Trajectories based on Alternative Safe Behaviors 
+[![PyPI version](https://img.shields.io/pypi/v/safemotions)](https://pypi.python.org/pypi/safemotions)
+[![PyPI license](https://img.shields.io/pypi/l/safemotions)](https://pypi.python.org/pypi/safemotions)
+[![GitHub issues](https://img.shields.io/github/issues/translearn/safemotions)](https://github.com/translearn/safemotions/issues/)
+[![PyPI download month](https://img.shields.io/pypi/dm/safeMotions)](https://pypi.python.org/pypi/safemotions/) <br>
 This python package provides the code to learn torque-limited and collision-free robot trajectories without exceeding limits on the position, velocity, acceleration and jerk of each robot joint.
 
 ![safemotions_picture](https://user-images.githubusercontent.com/51738372/116555683-f32d7680-a8fc-11eb-8cce-b01931c6ba58.png)
