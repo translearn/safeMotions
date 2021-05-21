@@ -22,7 +22,8 @@ setup(name='safemotions',
           'numpy',
           'klimits',
           'matplotlib',
-          'pybullet'
+          'pybullet',
+          'gym' 
       ],
-      extras_require={'train': ['gym', 'ray[tune]==0.8.4', 'ray[rllib]==0.8.4', 'tensorflow']}
+      extras_require={'train': ['ray[tune]==0.8.4', 'ray[rllib]==0.8.4', 'tensorflow']}
       )
