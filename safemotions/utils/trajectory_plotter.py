@@ -15,6 +15,11 @@ import matplotlib.patches
 import matplotlib.pyplot as plt
 import matplotlib.widgets
 import numpy as np
+from klimits import normalize as normalize_fast
+from klimits import normalize_batch as normalize_batch
+from klimits import interpolate_position_batch as interpolate_position_batch
+from klimits import interpolate_velocity_batch as interpolate_velocity_batch
+from klimits import interpolate_acceleration_batch as interpolate_acceleration_batch
 
 
 class TrajectoryPlotter:
@@ -86,11 +91,16 @@ class TrajectoryPlotter:
             self._sub_acc = None
             self._sub_jerk = None
 
-            self._pos_limits = pos_limits
-            self._vel_limits = vel_limits
-            self._acc_limits = acc_limits
-            self._jerk_limits = jerk_limits
-            self._torque_limits = torque_limits
+            self._pos_limits = np.array(pos_limits)
+            self._pos_limits_min_max = np.swapaxes(self._pos_limits, 0, 1)
+            self._vel_limits = np.array(vel_limits)
+            self._vel_limits_min_max = np.swapaxes(self._vel_limits, 0, 1)
+            self._acc_limits = np.array(acc_limits)
+            self._acc_limits_min_max = np.swapaxes(self._acc_limits, 0, 1)
+            self._jerk_limits = np.array(jerk_limits)
+            self._jerk_limits_min_max = np.swapaxes(self._jerk_limits, 0, 1)
+            self._torque_limits = np.array(torque_limits)
+            self._torque_limits_min_max = np.swapaxes(self._torque_limits, 0, 1)
 
             self._num_joints = len(self._pos_limits)
 
@@ -98,15 +108,15 @@ class TrajectoryPlotter:
                 self._plot_joint = [True for i in range(self._num_joints)]
 
             self._episode_counter = 0
-            self._zero_vector = [0 for i in range(self._num_joints)]
+            self._zero_vector = np.zeros(self._num_joints)
 
             self._current_acc_limits = None
             self._actual_pos = None
 
             self._timestamp = datetime.datetime.now().strftime('%Y%m%dT%H%M%S')
 
-        # matplotlib.use('QT5Agg')
-        # select the backend for matplotlib, potential values with GUI support: 'QT5Agg', 'TkAgg'
+        # you can select the backend for matplotlib with matplotlib.use(backend_str)
+        # potential values for backend_str with GUI support: 'QT5Agg', 'TkAgg'
         matplotlib.rcParams['pdf.fonttype'] = 42
         matplotlib.rcParams['ps.fonttype'] = 42
         matplotlib.rcParams['text.usetex'] = False
@@ -129,7 +139,7 @@ class TrajectoryPlotter:
 
         self._current_acc = self._zero_vector.copy()
         self._current_vel = self._zero_vector.copy()
-        self._current_pos = initial_joint_position.copy()
+        self._current_pos = np.array(initial_joint_position.copy())
 
         self._pos = []
         self._vel = []
@@ -154,16 +164,16 @@ class TrajectoryPlotter:
         self._actual_torque = []
 
         self._time = [0]
-        self._pos.append([normalize(self._current_pos[i], self._pos_limits[i]) for i in range(len(self._current_pos))])
-        self._vel.append([normalize(self._current_vel[i], self._vel_limits[i]) for i in range(len(self._current_vel))])
-        self._acc.append([normalize(self._current_acc[i], self._acc_limits[i]) for i in range(len(self._current_acc))])
+        self._pos.append(normalize(self._current_pos, self._pos_limits_min_max))
+        self._vel.append(normalize_fast(self._current_vel, self._vel_limits_min_max))
+        self._acc.append(normalize_fast(self._current_acc, self._acc_limits_min_max))
         self._jerk.append(self._zero_vector.copy())  # zero jerk as initial value
 
         self._sub_time = [0]
-        self._sub_pos.append(self._pos[0].copy())
-        self._sub_vel.append(self._vel[0].copy())
-        self._sub_acc.append(self._acc[0].copy())
-        self._sub_jerk.append(self._jerk[0].copy())
+        self._sub_pos = self._pos.copy()
+        self._sub_vel = self._vel.copy()
+        self._sub_acc = self._acc.copy()
+        self._sub_jerk = self._jerk.copy()
 
     def display_plot(self, max_time=None, obstacle_wrapper=None, blocking=True):
         if obstacle_wrapper is not None:
@@ -211,26 +221,16 @@ class TrajectoryPlotter:
         self._slider_joint_cartesian = ButtonArray(ax_slider_joint_cartesian, label='',
                                                    entries_str=["Joint", "Cartesian"])
 
-        plot_target_points = False
-        num_obstacles_and_target_points = self._obstacle_wrapper.num_obstacles
-        if plot_target_points:
-            num_obstacles_and_target_points + self._obstacle_wrapper.num_target_points
-        ax_slider_obstacle = fig.add_axes([0.15, 0.96, self._entry_width * num_obstacles_and_target_points, 0.02])
+        num_obstacles = self._obstacle_wrapper.num_obstacles
+        ax_slider_obstacle = fig.add_axes([0.15, 0.96, self._entry_width * num_obstacles, 0.02])
         entries_str_obstacles = ["Obstacle " + str(i + 1) if self._obstacle_wrapper.obstacle[i].name is None else
                                  self._obstacle_wrapper.obstacle[i].name
                                  for i in range(self._obstacle_wrapper.num_obstacles)]
-
-        if self._obstacle_wrapper.num_target_points > 0 and plot_target_points:
-            entries_str_target_points = ["Target " + str(i) if self._obstacle_wrapper.target_point[i].name is None else
-                                         self._obstacle_wrapper.target_point[i].name
-                                         for i in range(self._obstacle_wrapper.num_target_points)]
-            entries_str = entries_str_obstacles + entries_str_target_points
-        else:
-            entries_str = entries_str_obstacles
+        entries_str = entries_str_obstacles
 
         self._slider_obstacle = ButtonArray(ax_slider_obstacle, label='', entries_str=entries_str)
 
-        ax_slider_link = fig.add_axes([0.15 + self._entry_width * num_obstacles_and_target_points + 0.03, 0.96,
+        ax_slider_link = fig.add_axes([0.15 + self._entry_width * num_obstacles + 0.03, 0.96,
                                        len(self._obstacle_wrapper.links_in_use) * self._entry_width, 0.02])
         entries_str = []
         for i in range(len(self._obstacle_wrapper.links_in_use)):
@@ -240,8 +240,8 @@ class TrajectoryPlotter:
             obstacle_index=0))
 
         if self._obstacle_index is not None:
-            if self._obstacle_index >= num_obstacles_and_target_points:
-                self._obstacle_index = num_obstacles_and_target_points - 1
+            if self._obstacle_index >= num_obstacles:
+                self._obstacle_index = num_obstacles - 1
             self._slider_joint_cartesian.set_val(self._joint_cartesian_value)
             self._slider_joint_cartesian.update()
             self._slider_obstacle.set_val(self._obstacle_index)
@@ -301,7 +301,7 @@ class TrajectoryPlotter:
             if self._slider_link.last_val_int not in indices_of_observed_links_in_use:
                 self._add_slider_link_point(self._fig, slider_link_index=indices_of_observed_links_in_use[0])
             self._slider_link.set_active_values(indices_of_observed_links_in_use)
-            self._update_obstacle_indices(obstacleIndex=int_val)
+            self._update_obstacle_indices(obstacle_index=int_val)
             if self._slider_joint_cartesian.last_val_int == 1:
                 self._plot_obstacle_data()
 
@@ -309,14 +309,14 @@ class TrajectoryPlotter:
         int_val = int(self._slider_link.val)
         if int_val != self._slider_link.last_val_int and int_val in self._slider_link.active_values:
             self._add_slider_link_point(self._fig, slider_link_index=int_val)
-            self._update_obstacle_indices(linkIndex=int_val)
+            self._update_obstacle_indices(link_index=int_val)
             if self._slider_joint_cartesian.last_val_int == 1:
                 self._plot_obstacle_data()
 
     def _update_slider_link_point(self, val):
         int_val = int(self._slider_link_point.val)
         if int_val != self._slider_link_point.last_val_int:
-            self._update_obstacle_indices(pointIndex=int_val)
+            self._update_obstacle_indices(point_index=int_val)
             if self._slider_joint_cartesian.last_val_int == 1:
                 self._plot_obstacle_data()
 
@@ -773,56 +773,38 @@ class TrajectoryPlotter:
 
         fig.align_ylabels(ax)
 
-    def add_data_point(self, normalized_acc, normalized_acc_range=None):
+    def add_data_point(self, current_acc, acc_range=None):
         self._time.append(self._time[-1] + self._time_step)
         last_acc = self._current_acc.copy()
         last_vel = self._current_vel.copy()
         last_pos = self._current_pos.copy()
-        self._current_acc = [denormalize(normalized_acc[k], self._acc_limits[k]) for k in
-                             range(len(normalized_acc))]
-        self._current_jerk = [(self._current_acc[k] - last_acc[k]) / self._time_step
-                              for k in range(len(self._current_acc))]
-        self._current_vel = [last_vel[k] + 0.5 * self._time_step * (last_acc[k] + self._current_acc[k]) for k in
-                             range(len(self._current_vel))]
-        self._current_pos = [self._current_pos[k] + last_vel[k] * self._time_step
-                             + (1 / 3 * last_acc[k] + 1 / 6 * self._current_acc[k]) * self._time_step ** 2
-                             for k in range(len(self._current_pos))]
+        self._current_acc = current_acc
+        self._current_jerk = (self._current_acc - last_acc) / self._time_step
+        self._jerk.append(normalize_fast(self._current_jerk, self._jerk_limits_min_max))
 
-        self._pos.append([normalize(self._current_pos[k], self._pos_limits[k])
-                          for k in range(len(self._current_pos))])
-        # normalized position
-        self._vel.append([normalize(self._current_vel[k], self._vel_limits[k])
-                          for k in range(len(self._current_vel))])
-        # normalized velocities
-        self._jerk.append([normalize(self._current_jerk[k], self._jerk_limits[k])
-                           for k in range(len(self._current_jerk))])
-        # normalized jerk
-        self._acc.append(normalized_acc.tolist())
-
-        self._current_acc_limits.append(normalized_acc_range)
-
-        # calculate intermediate values for accurate plotting
+        self._current_acc_limits.append(normalize_batch(acc_range.T, self._acc_limits_min_max).T)
 
         for j in range(1, self._plot_num_sub_time_steps + 1):
-            t = j / self._plot_num_sub_time_steps * self._time_step
-            self._sub_time.append(self._time_step_counter * self._time_step + t)
-            self._sub_jerk.append(self._jerk[-1])  # constant jerk as the change in acceleration is linear
-            sub_current_acc = [last_acc[k] + ((self._current_acc[k] - last_acc[k]) / self._time_step) * t
-                               for k in range(len(self._current_acc))]
-            sub_current_vel = [last_vel[k] + last_acc[k] * t +
-                               0.5 * ((self._current_acc[k] - last_acc[k]) / self._time_step) * t ** 2
-                               for k in range(len(self._current_vel))]
-            sub_current_pos = [last_pos[k] + last_vel[k] * t + 0.5 * last_acc[k] * t ** 2 +
-                               1 / 6 * ((self._current_acc[k] - last_acc[k]) / self._time_step) * t ** 3
-                               for k in range(len(self._current_pos))]
+            self._sub_jerk.append(self._jerk[-1])
+        time_since_start = np.linspace(self._time_step / self._plot_num_sub_time_steps, self._time_step,
+                                       self._plot_num_sub_time_steps)
+        self._sub_time.extend(list(time_since_start + self._time_step_counter * self._time_step))
+        sub_current_acc = interpolate_acceleration_batch(last_acc, self._current_acc, time_since_start, self._time_step)
+        sub_current_vel = interpolate_velocity_batch(last_acc, self._current_acc, last_vel, time_since_start,
+                                                     self._time_step)
+        sub_current_pos = interpolate_position_batch(last_acc, self._current_acc, last_vel, last_pos, time_since_start,
+                                                     self._time_step)
 
-            # normalize acc, vel and pos
-            self._sub_acc.append([normalize(sub_current_acc[k], self._acc_limits[k])
-                                  for k in range(len(sub_current_acc))])
-            self._sub_vel.append([normalize(sub_current_vel[k], self._vel_limits[k])
-                                  for k in range(len(sub_current_vel))])
-            self._sub_pos.append([normalize(sub_current_pos[k], self._pos_limits[k])
-                                  for k in range(len(sub_current_pos))])
+        self._current_vel = sub_current_vel[-1]
+        self._current_pos = sub_current_pos[-1]
+
+        self._sub_acc.extend(list(normalize_batch(sub_current_acc, self._acc_limits_min_max)))
+        self._sub_vel.extend(list(normalize_batch(sub_current_vel, self._vel_limits_min_max)))
+        self._sub_pos.extend(list(normalize(sub_current_pos, self._pos_limits_min_max)))
+
+        self._acc.append(self._sub_acc[-1])
+        self._vel.append(self._sub_vel[-1])
+        self._pos.append(self._sub_pos[-1])
 
         self._time_step_counter = self._time_step_counter + 1
 
@@ -947,10 +929,22 @@ class TrajectoryPlotter:
 
 def normalize(value, value_range):
     normalized_value = -1 + 2 * (value - value_range[0]) / (value_range[1] - value_range[0])
+    continuous_joint_indices = np.isnan(value_range[0]) | np.isnan(value_range[1])
+    if np.any(continuous_joint_indices):
+        # continuous joint -> map [-np.pi, np.pi] and all values shifted by 2 * np.pi to [-1, 1]
+        if np.array(value).ndim == 2:  # batch computation
+            normalized_value[:, continuous_joint_indices] = \
+                -1 + 2 * (((value[:, continuous_joint_indices] + np.pi) / (2 * np.pi)) % 1)
+        else:
+            normalized_value[continuous_joint_indices] = \
+                -1 + 2 * (((value[continuous_joint_indices] + np.pi)/(2 * np.pi)) % 1)
     return normalized_value
 
 
 def denormalize(norm_value, value_range):
+    if np.isnan(value_range[0]) or np.isnan(value_range[1]):  # continuous joint
+        value_range[0] = -np.pi
+        value_range[1] = np.pi
     actual_value = value_range[0] + 0.5 * (norm_value + 1) * (value_range[1] - value_range[0])
     return actual_value
 

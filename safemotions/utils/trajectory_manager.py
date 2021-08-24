@@ -69,9 +69,6 @@ class TrajectoryManager(object):
     def get_trajectory_start_position(self):
         return self._trajectory_start_position
 
-    def _denormalize(self, norm_value, value_range):
-        actual_value = value_range[0] + 0.5 * (norm_value + 1) * (value_range[1] - value_range[0])
-        return actual_value
 
     def get_generated_trajectory_point(self, index, key='positions'):
         i = clip_index(index, len(self._generated_trajectory[key]))

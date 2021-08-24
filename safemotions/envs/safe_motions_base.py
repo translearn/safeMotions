@@ -7,9 +7,10 @@ import logging
 import os
 import time
 from abc import abstractmethod
-from functools import partial
 from pathlib import Path
 from threading import Thread
+from multiprocessing import Pool
+import datetime
 
 import gym
 import numpy as np
@@ -21,7 +22,7 @@ from safemotions.utils.trajectory_manager import TrajectoryManager
 
 SIM_TIME_STEP = 1. / 240.
 CONTROLLER_TIME_STEP = 1. / 200.
-EPISODES_PER_SIMULATION_RESET = 25000  # to avoid out of memory error
+EPISODES_PER_SIMULATION_RESET = 12500  # to avoid out of memory error
 
 # Termination reason
 TERMINATION_UNSET = -1
@@ -37,6 +38,8 @@ CPU_TINY_RENDERER = 2
 
 class SafeMotionsBase(gym.Env):
     def __init__(self,
+                 experiment_name,
+                 time_stamp=None,
                  evaluation_dir=None,
                  use_real_robot=False,
                  real_robot_debug_mode=False,
@@ -44,7 +47,8 @@ class SafeMotionsBase(gym.Env):
                  switch_gui=False,
                  control_time_step=None,
                  use_control_rate_sleep=True,
-                 use_thread_for_control_rate_sleep=False,
+                 use_thread_for_movement=False,
+                 use_process_for_movement=False,
                  pos_limit_factor=1,
                  vel_limit_factor=1,
                  acc_limit_factor=1,
@@ -62,11 +66,12 @@ class SafeMotionsBase(gym.Env):
                  plot_actual_torques=False,
                  robot_scene=0,
                  obstacle_scene=0,
+                 activate_obstacle_collisions=False,
                  observed_link_point_scene=0,
                  obstacle_use_computed_actual_values=False,
                  visualize_bounding_spheres=False,
-                 use_braking_trajectory_method=False,
-                 collision_check_time=0.05,
+                 check_braking_trajectory_collisions=False,
+                 collision_check_time=None,
                  check_braking_trajectory_observed_points=False,
                  check_braking_trajectory_closest_points=True,
                  check_braking_trajectory_torque_limits=False,
@@ -74,33 +79,171 @@ class SafeMotionsBase(gym.Env):
                  observed_point_safety_distance=0.1,
                  use_target_points=False,
                  target_point_cartesian_range_scene=0,
+                 target_point_relative_pos_scene=0,
                  target_point_radius=0.05,
                  target_point_sequence=0,
                  target_point_reached_reward_bonus=0.0,
-                 punish_braking_trajectory_min_distance=False,
-                 braking_trajectory_min_distance_max_threshold=None,
+                 target_point_use_actual_position=False,
                  target_link_name=None,
                  target_link_offset=None,
                  no_self_collision=False,
                  time_step_fraction_sleep_observation=0.0,
                  seed=None,
+                 solver_iterations=None,
+                 logging_level="WARNING",
                  random_agent=False,
                  **kwargs):
 
-        if position_controller_time_constants is None:
-            position_controller_time_constants = [0.030, 0.030, 0.030, 0.030, 0.030, 0.030, 0.030]
-        if seed is not None:
-            np.random.seed(seed)
+        self._fixed_seed = None
+        self.set_seed(seed)
         if evaluation_dir is None:
-            self._evaluation_dir = os.path.join(Path.home(), "safe_motions_evaluation")
+            evaluation_dir = os.path.join(Path.home(), "safe_motions_evaluation")
+        self._time_stamp = time_stamp
+        logging.getLogger().setLevel(logging_level)
+        if self._time_stamp is None:
+            self._time_stamp = datetime.datetime.now().strftime('%Y%m%dT%H%M%S')
+
+        self._experiment_name = experiment_name
+        self._evaluation_dir = os.path.join(evaluation_dir, self.__class__.__name__,
+                                            self._experiment_name, self._time_stamp)
+        self._pid = os.getpid()
+
+        if solver_iterations is None:
+            self._solver_iterations = 150
         else:
-            self._evaluation_dir = os.path.join(evaluation_dir, "safe_motions_evaluation")
+            self._solver_iterations = solver_iterations
 
         self._target_link_name = target_link_name
         self._use_real_robot = use_real_robot
         self._use_gui = use_gui
         self._switch_gui = switch_gui
         self._use_control_rate_sleep = use_control_rate_sleep
+        self._num_physic_clients = 0
+        self._gui_client_id = None
+
+        self._init_physic_clients()
+
+        if control_time_step is None:
+            self._control_time_step = CONTROLLER_TIME_STEP if self._use_real_robot else SIM_TIME_STEP
+        else:
+            self._control_time_step = control_time_step
+
+        self._simulation_time_step = SIM_TIME_STEP
+        self._control_step_counter = 0
+        self._episode_counter = 0
+
+        self._obstacle_scene = obstacle_scene
+        self._activate_obstacle_collisions = activate_obstacle_collisions
+        self._observed_link_point_scene = observed_link_point_scene
+        self._visualize_bounding_spheres = visualize_bounding_spheres
+        self._log_obstacle_data = log_obstacle_data
+        self._save_obstacle_data = save_obstacle_data
+        self._robot_scene_config = robot_scene
+        self._check_braking_trajectory_collisions = check_braking_trajectory_collisions
+        self._collision_check_time = collision_check_time
+        self._check_braking_trajectory_observed_points = check_braking_trajectory_observed_points
+        self._check_braking_trajectory_closest_points = check_braking_trajectory_closest_points
+        self._check_braking_trajectory_torque_limits = check_braking_trajectory_torque_limits
+        self._closest_point_safety_distance = closest_point_safety_distance
+        self._observed_point_safety_distance = observed_point_safety_distance
+        self._use_target_points = use_target_points
+        self._target_point_cartesian_range_scene = target_point_cartesian_range_scene
+        self._target_point_relative_pos_scene = target_point_relative_pos_scene
+        self._target_point_radius = target_point_radius
+        self._target_point_sequence = target_point_sequence
+        self._target_point_reached_reward_bonus = target_point_reached_reward_bonus
+        self._target_point_use_actual_position = target_point_use_actual_position
+        self._no_self_collision = no_self_collision
+        self._trajectory_time_step = online_trajectory_time_step
+        self._position_controller_time_constants = position_controller_time_constants
+        self._plot_computed_actual_values = plot_computed_actual_values
+        self._plot_actual_torques = plot_actual_torques
+        self._pos_limit_factor = pos_limit_factor
+        self._vel_limit_factor = vel_limit_factor
+        self._acc_limit_factor = acc_limit_factor
+        self._jerk_limit_factor = jerk_limit_factor
+        self._torque_limit_factor = torque_limit_factor
+        self._acceleration_after_max_vel_limit_factor = acceleration_after_max_vel_limit_factor
+        self._online_trajectory_duration = online_trajectory_duration
+        self._eval_new_condition_counter = eval_new_condition_counter
+        self._store_actions = store_actions
+        self._target_link_offset = target_link_offset
+        self._real_robot_debug_mode = real_robot_debug_mode
+        self._random_agent = random_agent
+
+        self._network_prediction_part_done = None
+        self._use_thread_for_movement = use_thread_for_movement
+        self._use_process_for_movement = use_process_for_movement
+        if self._use_thread_for_movement and self._use_process_for_movement:
+            raise ValueError("use_thread_for_movement and use_process_for_movement are not "
+                             "allowed to be True simultaneously")
+        self._use_movement_thread_or_process = self._use_thread_for_movement or self._use_process_for_movement
+        if self._use_movement_thread_or_process and not self._use_control_rate_sleep:
+            logging.warning("use_movement_thread_or_process without use_control_rate_sleep == True")
+        if self._use_real_robot and not self._use_movement_thread_or_process:
+            raise ValueError("use_real_robot requires either use_thread_for_movement or use_process_for_movement")
+
+        self._time_step_fraction_sleep_observation = time_step_fraction_sleep_observation
+        # 0..1; fraction of the time step,  the main thread sleeps before getting the next observation;
+        # only relevant if self._use_real_robot == True
+        if time_step_fraction_sleep_observation != 0:
+            logging.info("time_step_fraction_sleep_observation %s", self._time_step_fraction_sleep_observation)
+        self._obstacle_use_computed_actual_values = obstacle_use_computed_actual_values
+        # use computed actual values to determine the distance between the robot and obstacles and as initial point
+        # for torque simulations -> advantage: can be computed in advance, no measurements -> real-time capable
+        # disadvantage: controller model might introduce inaccuracies
+        if self._use_movement_thread_or_process and not self._obstacle_use_computed_actual_values:
+            raise ValueError("Real-time execution requires obstacle_use_computed_actual_values to be True")
+
+        if self._use_movement_thread_or_process:
+            if self._use_thread_for_movement:
+                logging.info("Using movement thread")
+            else:
+                logging.info("Using movement process")
+
+        if self._use_process_for_movement:
+            self._movement_process_pool = Pool(processes=1)
+        else:
+            self._movement_process_pool = None
+
+        self._model_actual_values = self._use_movement_thread_or_process or self._obstacle_use_computed_actual_values \
+                                    or self._plot_computed_actual_values or (self._use_real_robot and self._use_gui)
+
+        if not self._use_movement_thread_or_process and self._control_time_step != self._simulation_time_step:
+            raise ValueError("If no movement thread or process is used, the control time step must equal the control "
+                             "time step of the obstacle client")
+
+        self._start_position = None
+        self._start_velocity = None
+        self._start_acceleration = None
+        self._position_deviation = None
+        self._acceleration_deviation = None
+        self._current_trajectory_point_index = None
+        self._trajectory_successful = None
+        self._total_reward = None
+        self._episode_length = None
+        self._action_list = []
+        self._last_action = None
+        self._termination_reason = TERMINATION_UNSET
+        self._movement_thread = None
+        self._movement_process = None
+        self._brake = False
+
+        self._adaptation_punishment = None
+        self._end_min_distance = None
+        self._end_max_torque = None  # for (optional) reward calculations
+        self._punish_end_max_torque = False  # set in rewards.py
+
+        self._init_simulation()
+
+        if self._gui_client_id is not None:
+            # deactivate rendering temporarily to reduce the computational effort for the additional process that
+            # ray spawns to detect the observation space and the action space
+            # rendering is activated the first time that reset is called
+            p.configureDebugVisualizer(p.COV_ENABLE_GUI, 0, physicsClientId=self._gui_client_id)
+            p.configureDebugVisualizer(p.COV_ENABLE_RENDERING, 0, physicsClientId=self._gui_client_id)
+
+    def _init_physic_clients(self):
         self._num_physic_clients = 0
 
         if self._render_video:
@@ -110,6 +253,7 @@ class SafeMotionsBase(gym.Env):
 
         if self._use_gui and not self._switch_gui:
             self._simulation_client_id = p.connect(p.GUI, options=pybullet_options)
+            self._gui_client_id = self._simulation_client_id
             self._num_physic_clients += 1
         else:
             if not self._use_real_robot:
@@ -117,7 +261,7 @@ class SafeMotionsBase(gym.Env):
                 self._num_physic_clients += 1
             else:
                 self._simulation_client_id = None
-        
+
         self._egl_plugin = None
 
         if self._simulation_client_id is not None:
@@ -142,102 +286,10 @@ class SafeMotionsBase(gym.Env):
 
         if self._use_gui and self._switch_gui:
             self._obstacle_client_id = p.connect(p.GUI)
+            self._gui_client_id = self._obstacle_client_id
         else:
             self._obstacle_client_id = p.connect(p.DIRECT)
-
         self._num_physic_clients += 1
-
-        if control_time_step is None:
-            self._control_time_step = CONTROLLER_TIME_STEP if self._use_real_robot else SIM_TIME_STEP
-        else:
-            self._control_time_step = control_time_step
-
-        self._simulation_time_step = SIM_TIME_STEP
-        self._control_step_counter = 0
-        self._episode_counter = 0
-
-        self._obstacle_scene = obstacle_scene
-        self._observed_link_point_scene = observed_link_point_scene
-        self._visualize_bounding_spheres = visualize_bounding_spheres
-        self._log_obstacle_data = log_obstacle_data
-        self._save_obstacle_data = save_obstacle_data
-        self._robot_scene_config = robot_scene
-        self._use_braking_trajectory_method = use_braking_trajectory_method
-        self._collision_check_time = collision_check_time
-        self._check_braking_trajectory_observed_points = check_braking_trajectory_observed_points
-        self._check_braking_trajectory_closest_points = check_braking_trajectory_closest_points
-        self._check_braking_trajectory_torque_limits = check_braking_trajectory_torque_limits
-        self._closest_point_safety_distance = closest_point_safety_distance
-        self._observed_point_safety_distance = observed_point_safety_distance
-        self._use_target_points = use_target_points
-        self._target_point_cartesian_range_scene = target_point_cartesian_range_scene
-        self._target_point_radius = target_point_radius
-        self._target_point_sequence = target_point_sequence
-        self._target_point_reached_reward_bonus = target_point_reached_reward_bonus
-        self._punish_braking_trajectory_min_distance = punish_braking_trajectory_min_distance
-        self._braking_trajectory_min_distance_max_threshold = braking_trajectory_min_distance_max_threshold
-        self._no_self_collision = no_self_collision
-        self._trajectory_time_step = online_trajectory_time_step
-        self._position_controller_time_constants = position_controller_time_constants
-        self._plot_computed_actual_values = plot_computed_actual_values
-        self._plot_actual_torques = plot_actual_torques
-        self._pos_limit_factor = pos_limit_factor
-        self._vel_limit_factor = vel_limit_factor
-        self._acc_limit_factor = acc_limit_factor
-        self._jerk_limit_factor = jerk_limit_factor
-        self._torque_limit_factor = torque_limit_factor
-        self._acceleration_after_max_vel_limit_factor = acceleration_after_max_vel_limit_factor
-        self._online_trajectory_duration = online_trajectory_duration
-        self._eval_new_condition_counter = eval_new_condition_counter
-        self._store_actions = store_actions
-        self._target_link_offset = target_link_offset
-        self._real_robot_debug_mode = real_robot_debug_mode
-        self._random_agent = random_agent
-
-        self._network_prediction_part_done = None
-        self._use_thread_for_control_rate_sleep = use_thread_for_control_rate_sleep
-        if self._use_thread_for_control_rate_sleep and not self._use_control_rate_sleep:
-            logging.warning("use_thread_for_control_rate_sleep ignored since use_control_rate_sleep == False")
-        self._use_movement_thread = (self._use_control_rate_sleep and self._use_thread_for_control_rate_sleep) \
-                                    or self._use_real_robot
-        self._time_step_fraction_sleep_observation = time_step_fraction_sleep_observation
-        # 0..1; fraction of the time step,  the main thread sleeps before getting the next observation;
-        # only relevant if self._use_real_robot == True
-        if time_step_fraction_sleep_observation != 0:
-            logging.info("time_step_fraction_sleep_observation %s", self._time_step_fraction_sleep_observation)
-        self._obstacle_use_computed_actual_values = obstacle_use_computed_actual_values
-        # use computed actual values to determine the distance between the robot and obstacles and as initial point
-        # for torque simulations -> advantage: can be computed in advance, no measurements -> real-time capable
-        # disadvantage: controller model might introduce inaccuracies
-        if self._use_movement_thread and not self._obstacle_use_computed_actual_values:
-            raise ValueError("Real-time execution requires obstacle_use_computed_actual_values to be True")
-
-        if self._use_movement_thread:
-            logging.info("Using movement thread")
-
-        self._model_actual_values = self._use_movement_thread or self._obstacle_use_computed_actual_values or \
-                                    self._plot_computed_actual_values or (self._use_real_robot and self._use_gui)
-
-        if not self._use_movement_thread and self._control_time_step != self._simulation_time_step:
-            raise ValueError("If no movement thread is used, the control time step must equal the control time step "
-                             "of the obstacle client")
-
-        self._start_position = None
-        self._start_velocity = None
-        self._start_acceleration = None
-        self._position_deviation = None
-        self._acceleration_deviation = None
-        self._current_trajectory_point_index = None
-        self._trajectory_successful = None
-        self._total_reward = None
-        self._episode_length = None
-        self._action_list = []
-        self._last_action = None
-        self._termination_reason = TERMINATION_UNSET
-        self._movement_thread = None
-        self._braking = False
-
-        self._init_simulation()
 
     def _init_simulation(self):
         # reset the physics engine
@@ -252,10 +304,14 @@ class SafeMotionsBase(gym.Env):
                                   'use_real_robot': self._use_real_robot,
                                   'robot_scene': self._robot_scene_config,
                                   'obstacle_scene': self._obstacle_scene,
+                                  'visual_mode': self._use_gui or self._render_video,
+                                  'activate_obstacle_collisions': self._activate_obstacle_collisions,
                                   'observed_link_point_scene': self._observed_link_point_scene,
                                   'log_obstacle_data': self._log_obstacle_data,
                                   'visualize_bounding_spheres': self._visualize_bounding_spheres,
-                                  'use_braking_trajectory_method': self._use_braking_trajectory_method,
+                                  'acc_range_function': self.compute_next_acc_min_and_next_acc_max,
+                                  'acc_braking_function': self.acc_braking_function,
+                                  'check_braking_trajectory_collisions': self._check_braking_trajectory_collisions,
                                   'collision_check_time': self._collision_check_time,
                                   'check_braking_trajectory_observed_points':
                                       self._check_braking_trajectory_observed_points,
@@ -267,13 +323,11 @@ class SafeMotionsBase(gym.Env):
                                   'observed_point_safety_distance': self._observed_point_safety_distance,
                                   'use_target_points': self._use_target_points,
                                   'target_point_cartesian_range_scene': self._target_point_cartesian_range_scene,
+                                  'target_point_relative_pos_scene': self._target_point_relative_pos_scene,
                                   'target_point_radius': self._target_point_radius,
                                   'target_point_sequence': self._target_point_sequence,
                                   'target_point_reached_reward_bonus': self._target_point_reached_reward_bonus,
-                                  'punish_braking_trajectory_min_distance':
-                                      self._punish_braking_trajectory_min_distance,
-                                  'braking_trajectory_min_distance_max_threshold':
-                                      self._braking_trajectory_min_distance_max_threshold,
+                                  'target_point_use_actual_position': self._target_point_use_actual_position,
                                   'no_self_collision': self._no_self_collision,
                                   'target_link_name': self._target_link_name,
                                   'target_link_offset': self._target_link_offset,
@@ -291,6 +345,9 @@ class SafeMotionsBase(gym.Env):
             self._robot_scene = SimRobotScene(**robot_scene_parameters)
 
         self._num_manip_joints = self._robot_scene.num_manip_joints
+        if self._position_controller_time_constants is None:
+            self._position_controller_time_constants = [0.030] * self._num_manip_joints
+
         # trajectory manager settings
         self._trajectory_manager = TrajectoryManager(trajectory_time_step=self._trajectory_time_step,
                                                      trajectory_duration=self._online_trajectory_duration,
@@ -310,29 +367,37 @@ class SafeMotionsBase(gym.Env):
 
         self._zero_joint_vector = [0.0] * self._num_manip_joints
 
-        if self._use_movement_thread or (self._use_gui and self._use_control_rate_sleep):
+        if (self._use_movement_thread_or_process or self._use_gui) and self._use_control_rate_sleep:
             try:
+                log_level = logging.root.level
                 import rospy
                 rospy.init_node("safe_motions_control_rate", anonymous=True, disable_signals=True)
+                from importlib import reload  
+                reload(logging)
+                logging.basicConfig()
+                logging.getLogger().setLevel(log_level)
                 self._control_rate = rospy.Rate(1. / self._control_time_step)
             except ImportError as _:
-                logging.warning("Could not find rospy / a ROS installation. Using time.sleep instead of rospy.Rate. "
-                                "Timing will be less accurate.")
-                control_rate_sleep = partial(time.sleep, self._control_time_step)
-                self._control_rate = type("control_rate", (object, ), {"sleep": lambda: control_rate_sleep()})
+                logging.warning("Could not find rospy / a ROS installation. Using time.sleep instead of rospy.Rate.")
+                self._control_rate = ControlRate(1. / self._control_time_step, skip_periods=True, debug_mode=False)
         else:
             self._control_rate = None
 
         for i in range(self._num_physic_clients):
             p.setGravity(0, 0, -9.81, physicsClientId=i)
-            p.setPhysicsEngineParameter(numSolverIterations=150, physicsClientId=i)
+            p.setPhysicsEngineParameter(numSolverIterations=self._solver_iterations, physicsClientId=i)
             p.setTimeStep(self._simulation_time_step, physicsClientId=i)
 
     def reset(self):
-
         self._episode_counter += 1
+        if self._episode_counter == 1 and self._gui_client_id is not None:
+            p.configureDebugVisualizer(p.COV_ENABLE_RENDERING, 1, physicsClientId=self._gui_client_id)
+            if self._render_video:
+                p.configureDebugVisualizer(p.COV_ENABLE_GUI, 1, physicsClientId=self._gui_client_id)
 
         if self._episode_counter % EPISODES_PER_SIMULATION_RESET == 0:
+            self._disconnect_physic_clients()
+            self._init_physic_clients()
             self._init_simulation()
 
         self._control_step_counter = 0
@@ -378,18 +443,22 @@ class SafeMotionsBase(gym.Env):
         else:
             self._add_actual_torques_to_plot(self._zero_joint_vector)
 
-        self._calculate_norm_acc_range(self._start_position, self._start_velocity, self._start_acceleration,
+        self._calculate_safe_acc_range(self._start_position, self._start_velocity, self._start_acceleration,
                                        self._current_trajectory_point_index)
 
         self._termination_reason = TERMINATION_UNSET
         self._last_action = None
         self._network_prediction_part_done = False
         self._movement_thread = None
-        self._braking = False
+        self._movement_process = None
+        self._brake = False
+        self._end_min_distance = None
+        self._end_max_torque = None
+        self._adaptation_punishment = None
 
-        if self._control_rate is not None:
+        if self._control_rate is not None and hasattr(self._control_rate, 'reset'):
             # reset control rate timer
-            self._control_rate.sleep()
+            self._control_rate.reset()
 
         return None
 
@@ -399,13 +468,15 @@ class SafeMotionsBase(gym.Env):
         if self._random_agent:
             action = np.random.uniform(-1, 1, self.action_space.shape)
             # overwrite the desired action with a random action
+        else:
+            action = np.asarray(action, dtype=np.float64)
 
         if self._store_actions:
             self._action_list.append(action)
 
         logging.debug("Action %s: %s", self._episode_length - 1, action)
 
-        controller_setpoints, obstacle_client_update_setpoints, action_info, robot_stopped = \
+        end_acceleration, controller_setpoints, obstacle_client_update_setpoints, action_info, robot_stopped = \
             self._compute_controller_setpoints_from_action(action)
 
         for i in range(len(controller_setpoints['positions'])):
@@ -435,36 +506,62 @@ class SafeMotionsBase(gym.Env):
                                                            computed_acceleration_is)
 
                 if self._robot_scene.obstacle_wrapper is not None:
-                    if self._use_movement_thread or self._obstacle_use_computed_actual_values:
+                    if self._use_movement_thread_or_process or self._obstacle_use_computed_actual_values:
                         self._robot_scene.obstacle_wrapper.update(
                             target_position=obstacle_client_update_setpoints['positions'][i],
                             target_velocity=obstacle_client_update_setpoints['velocities'][i],
-                            target_acceleration=obstacle_client_update_setpoints['accelerations'][
-                                                                       i],
+                            target_acceleration=obstacle_client_update_setpoints['accelerations'][i],
                             actual_position=computed_position_is,
                             actual_velocity=computed_velocity_is)
 
-        if self._use_movement_thread:
-            movement_thread = Thread(target=self._execute_robot_movement,
-                                     kwargs=dict(controller_setpoints=controller_setpoints))
-            if self._movement_thread is not None:
-                self._movement_thread.join()
-            movement_thread.start()
-            self._movement_thread = movement_thread
+        if self._control_rate is not None and self._episode_length == 1:
+            # start the control phase and compute the precomputation time
+            if hasattr(self._control_rate, 'start_control_phase'):
+                self._control_rate.start_control_phase()
+            else:
+                self._control_rate.sleep()
+        
+        if self._use_movement_thread_or_process:
+            if self._use_thread_for_movement:
+                movement_thread = Thread(target=self._execute_robot_movement,
+                                         kwargs=dict(controller_setpoints=controller_setpoints))
+                if self._movement_thread is not None:
+                    self._movement_thread.join()
+                movement_thread.start()
+                self._movement_thread = movement_thread
+            if self._use_process_for_movement:
+                control_rate = None if self._control_rate is None else self._control_rate.control_rate
+                control_function = self._robot_scene.send_command_to_trajectory_controller \
+                    if not self._real_robot_debug_mode else (lambda var: None)
+                if self._movement_process is not None:
+                    last_time = self._movement_process.get()
+                else:
+                    last_time = None
+                self._movement_process = \
+                    self._movement_process_pool.apply_async(func=self._execute_robot_movement_as_process,
+                                                            kwds=dict(control_function=control_function,
+                                                                      controller_position_setpoints=
+                                                                      controller_setpoints['positions'],
+                                                                      control_rate=control_rate,
+                                                                      last_time=last_time))
+                time.sleep(0.002)
+                # the movement process will start faster if the main process sleeps during the start-up phase
+
             movement_info = {}
         else:
             self._movement_thread = None
             movement_info = self._execute_robot_movement(controller_setpoints=controller_setpoints)
 
-        self._start_position = np.array(obstacle_client_update_setpoints['positions'][-1])
-        self._start_velocity = np.array(obstacle_client_update_setpoints['velocities'][-1])
-        self._start_acceleration = np.array(obstacle_client_update_setpoints['accelerations'][-1])
+        self._start_position = obstacle_client_update_setpoints['positions'][-1]
+        self._start_velocity = obstacle_client_update_setpoints['velocities'][-1]
+        self._start_acceleration = end_acceleration
+
         self._add_generated_trajectory_point(self._start_position, self._start_velocity, self._start_acceleration)
 
         self._current_trajectory_point_index += 1
         self._last_action = action  # store the last action for reward calculation
 
-        self._calculate_norm_acc_range(self._start_position, self._start_velocity, self._start_acceleration,
+        self._calculate_safe_acc_range(self._start_position, self._start_velocity, self._start_acceleration,
                                        self._current_trajectory_point_index)
 
         # sleep for a specified part of the time_step before getting the observation
@@ -495,6 +592,9 @@ class SafeMotionsBase(gym.Env):
 
                 if self._movement_thread is not None:
                     self._movement_thread.join()
+                if self._movement_process is not None:
+                    self._movement_process.get()
+
                 self._robot_scene.prepare_for_end_of_episode()
                 self._prepare_for_end_of_episode()
                 observation, reward, _, info = self._process_end_of_episode(observation, reward, done, info)
@@ -503,7 +603,7 @@ class SafeMotionsBase(gym.Env):
                     self._store_action_list()
 
             else:
-                self._braking = True  # slow down the robot prior to stopping the episode
+                self._brake = True  # slow down the robot prior to stopping the episode
                 done = False
 
         return observation, reward, done, dict(info)
@@ -513,14 +613,7 @@ class SafeMotionsBase(gym.Env):
         actual_joint_torques_rel_abs_list = []
         for i in range(len(controller_setpoints['positions'])):
             if not self._use_real_robot:
-                curr_position_is = self._robot_scene.get_actual_joint_positions()
-                curr_velocity_is = (np.array(curr_position_is) - np.array(
-                    self._get_measured_actual_trajectory_control_point(-1))) / self._control_time_step
-                curr_acceleration_is = (curr_velocity_is - np.array(
-                    self._get_measured_actual_trajectory_control_point(-1, key='velocities'))) / self._control_time_step
-                self._add_measured_actual_trajectory_control_point(list(curr_position_is), list(curr_velocity_is),
-                                                                   list(curr_acceleration_is))
-                self._add_actual_position_to_plot(curr_position_is)
+                self._add_actual_position_to_plot()
 
             if self._control_rate is not None:
                 self._control_rate.sleep()
@@ -538,11 +631,9 @@ class SafeMotionsBase(gym.Env):
 
                 if self._plot_actual_torques:
                     self._add_actual_torques_to_plot(actual_joint_torques)
-            else:
-                actual_joint_torques_rel_abs_list.append(self._zero_joint_vector)
 
             if self._robot_scene.obstacle_wrapper is not None:
-                if not self._use_movement_thread and not self._obstacle_use_computed_actual_values:
+                if not self._use_movement_thread_or_process and not self._obstacle_use_computed_actual_values:
                     actual_position, actual_velocity = self._robot_scene.get_actual_joint_position_and_velocity()
 
                     self._robot_scene.obstacle_wrapper.update(target_position=controller_setpoints['positions'][i],
@@ -554,28 +645,65 @@ class SafeMotionsBase(gym.Env):
 
         movement_info = {'average': {}, 'max': {}}
 
-        # add torque info to movement_info
-        torque_violation = 0.0
-        actual_joint_torques_rel_abs_swap = np.swapaxes(actual_joint_torques_rel_abs_list, 0, 1)
-        for j in range(self._num_manip_joints):
-            movement_info['average']['joint_{}_torque_abs'.format(j)] = np.mean(actual_joint_torques_rel_abs_swap[j])
-            actual_joint_torques_rel_abs_max = np.max(actual_joint_torques_rel_abs_swap[j])
-            movement_info['max']['joint_{}_torque_abs'.format(j)] = actual_joint_torques_rel_abs_max
-            if actual_joint_torques_rel_abs_max > 1.001:
-                torque_violation = 1.0
-                logging.warning("Torque Violation: t = " + str(
-                    (self._episode_length - 1) * self._trajectory_time_step) + " Joint: " + str(
-                    j) + " Rel Torque:" + str(actual_joint_torques_rel_abs_max))
+        if not self._use_real_robot:
+            # add torque info to movement_info
+            torque_violation = 0.0
+            actual_joint_torques_rel_abs = np.array(actual_joint_torques_rel_abs_list)
+            if self._punish_end_max_torque and self._end_max_torque is None:
+                self._end_max_torque = np.max(actual_joint_torques_rel_abs[-1])
+            actual_joint_torques_rel_abs_swap = actual_joint_torques_rel_abs.T
+            for j in range(self._num_manip_joints):
+                movement_info['average']['joint_{}_torque_abs'.format(j)] = np.mean(
+                    actual_joint_torques_rel_abs_swap[j])
+                actual_joint_torques_rel_abs_max = np.max(actual_joint_torques_rel_abs_swap[j])
+                movement_info['max']['joint_{}_torque_abs'.format(j)] = actual_joint_torques_rel_abs_max
+                if actual_joint_torques_rel_abs_max > 1.001:
+                    torque_violation = 1.0
+                    logging.warning("Torque violation: t = %s Joint: %s Rel torque %s",
+                                    (self._episode_length - 1) * self._trajectory_time_step, j,
+                                    actual_joint_torques_rel_abs_max)
 
-        movement_info['max']['joint_torque_violation'] = torque_violation
-        movement_info['average']['joint_torque_violation'] = torque_violation
+            movement_info['max']['joint_torque_violation'] = torque_violation
+            movement_info['average']['joint_torque_violation'] = torque_violation
 
         return movement_info
 
+    @staticmethod
+    def _execute_robot_movement_as_process(control_function, controller_position_setpoints, control_rate=None,
+                                           last_time=None):
+        if control_rate is not None:
+            control_rate = ControlRate(control_rate=control_rate, skip_periods=False, debug_mode=False,
+                                       last_time=last_time, busy_wait=True)
+
+        for i in range(len(controller_position_setpoints)):
+            if control_rate is not None:
+                control_rate.sleep()
+
+            control_function(controller_position_setpoints[i])
+
+        if control_rate is not None:
+            return control_rate.last_time
+        else:
+            return None
+
     def close(self):
+        self._robot_scene.disconnect()
+        self._disconnect_physic_clients()
+        if self._movement_process_pool is not None:
+            self._movement_process_pool.close()
+            self._movement_process_pool.join()
+
+    def _disconnect_physic_clients(self):
         if self._egl_plugin is not None:
             p.unloadPlugin(self._egl_plugin)
-        self._robot_scene.disconnect()
+        for i in range(self._num_physic_clients):
+            p.disconnect(physicsClientId=i)
+
+    def set_seed(self, seed=None):
+        self._fixed_seed = seed
+        if seed is not None:
+            np.random.seed(seed)
+        return [seed]
 
     @abstractmethod
     def render(self, mode="human"):
@@ -587,6 +715,13 @@ class SafeMotionsBase(gym.Env):
 
     @abstractmethod
     def _get_reward(self):
+        raise NotImplementedError()
+
+    @abstractmethod
+    def acc_braking_function(self):
+        raise NotImplementedError()
+
+    def compute_next_acc_min_and_next_acc_max(self):
         raise NotImplementedError()
 
     @abstractmethod
@@ -631,16 +766,34 @@ class SafeMotionsBase(gym.Env):
         done = False
         if self._trajectory_manager.is_trajectory_finished(self._current_trajectory_point_index):
             done = True
-
         return done
-
-    @property
-    def norm_acc_range(self):
-        return self._get_norm_acc_range()
 
     @property
     def trajectory_time_step(self):
         return self._trajectory_time_step
+
+    @property
+    def pid(self):
+        return self._pid
+
+    @property
+    def evaluation_dir(self):
+        return self._evaluation_dir
+
+    @property
+    def use_real_robot(self):
+        return self._use_real_robot
+
+    @property
+    def episode_counter(self):
+        return self._episode_counter
+
+    @property
+    def precomputation_time(self):
+        if self._control_rate is not None and hasattr(self._control_rate, 'precomputation_time'):
+            return self._control_rate.precomputation_time
+        else:
+            return None
 
     @property
     @abstractmethod
@@ -648,7 +801,7 @@ class SafeMotionsBase(gym.Env):
         pass
 
     @abstractmethod
-    def _get_norm_acc_range(self):
+    def _get_safe_acc_range(self):
         pass
 
     @abstractmethod
@@ -656,7 +809,7 @@ class SafeMotionsBase(gym.Env):
         pass
 
     @abstractmethod
-    def _add_actual_position_to_plot(self, actual_joint_position):
+    def _add_actual_position_to_plot(self):
         pass
 
     @abstractmethod
@@ -669,7 +822,7 @@ class SafeMotionsBase(gym.Env):
         pass
 
     @abstractmethod
-    def _calculate_norm_acc_range(self, start_position, start_velocity, start_acceleration, trajectory_point_index):
+    def _calculate_safe_acc_range(self, start_position, start_velocity, start_acceleration, trajectory_point_index):
         pass
 
     def _get_trajectory_start_position(self):
@@ -701,4 +854,66 @@ class SafeMotionsBase(gym.Env):
 
 
 def normalize_joint_values(values, joint_limits):
-    return list(np.array(values) / np.array(joint_limits))
+    return list(np.asarray(values) / np.asarray(joint_limits))
+
+
+class ControlRate:
+    def __init__(self, control_rate, skip_periods=False, debug_mode=False, last_time=None, busy_wait=False):
+        self._control_rate = control_rate
+        self._period = 1 / self._control_rate
+        self._busy_wait = busy_wait
+        if last_time is None:
+            self._last_time = time.perf_counter()
+        else:
+            self._last_time = last_time
+        self._skip_periods = skip_periods
+        self._debug_mode = debug_mode
+        self._sleep_counter = 0
+        self._precomputation_time = 0
+
+    def reset(self):
+        self._sleep_counter = 0
+        self._last_time = time.perf_counter()
+
+    def start_control_phase(self):
+        current_time = time.perf_counter()
+        self._precomputation_time = current_time - self._last_time
+        self._last_time = current_time
+        
+    @property
+    def precomputation_time(self):
+        return self._precomputation_time
+
+    @property
+    def control_rate(self):
+        return self._control_rate
+
+    @property
+    def last_time(self):
+        return self._last_time
+
+    def sleep(self):
+        current_time = time.perf_counter()
+        target_time = self._last_time + self._period
+        diff_time = target_time - current_time
+        if diff_time > 0.0:
+            if self._busy_wait:
+                while time.perf_counter() < target_time:
+                    pass
+            else:
+                time.sleep(diff_time)
+            self._last_time = self._last_time + self._period
+        else:
+            if self._skip_periods:
+                self._last_time = self._last_time + self._period
+            else:
+                self._last_time = current_time
+
+        if self._debug_mode:
+            logging.warning("%s: Should sleep for %s s, slept for %s s", self._sleep_counter, diff_time,
+                            time.perf_counter() - current_time)
+            self._sleep_counter = self._sleep_counter + 1 
+
+
+
+

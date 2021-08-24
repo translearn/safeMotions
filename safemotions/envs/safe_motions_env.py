@@ -8,19 +8,11 @@ import numpy as np
 import os
 import inspect
 import errno
-import datetime
-import pybullet as p
 from collections import defaultdict
-from glob import glob
 from itertools import chain
 from safemotions.envs.decorators import actions, observations, rewards, video_recording
 
 project_dir = os.path.dirname(os.path.dirname(os.path.abspath(inspect.getfile(inspect.currentframe()))))
-
-# Renderer
-OPENGL_GUI_RENDERER = 0
-OPENGL_EGL_RENDERER = 1
-CPU_TINY_RENDERER = 2
 
 
 class SafeMotionsEnv(actions.AccelerationPredictionBoundedJerkAccVelPos,
@@ -28,27 +20,9 @@ class SafeMotionsEnv(actions.AccelerationPredictionBoundedJerkAccVelPos,
                      rewards.TargetPointReachingReward,
                      video_recording.VideoRecordingManager):
     def __init__(self,
-                 experiment_name,
                  *vargs,
                  **kwargs):
-        super().__init__(experiment_name, *vargs, **kwargs)
-        self._experiment_name = experiment_name
-        self._timestamp = datetime.datetime.now().strftime('%Y%m%dT%H%M%S')
-
-    def render(self, mode="human"):
-        if mode == "human":
-            return np.array([])
-        else:
-            (_, _, image, _, _) = p.getCameraImage(width=self._video_width, height=self._video_height,
-                                                   renderer=self._pybullet_renderer,
-                                                   viewMatrix=self._view_matrix,
-                                                   projectionMatrix=self._projection_matrix,
-                                                   shadow=0, lightDirection=[-20, -0.5, 150],
-                                                   flags=p.ER_NO_SEGMENTATION_MASK)
-            image = np.reshape(image, (self._video_height, self._video_width, 4))
-            image = np.uint8(image[:, :, :3])
-
-            return np.array(image)
+        super().__init__(*vargs, **kwargs)
 
     def _process_action_outcome(self, base_info, action_info):
         reward, reward_info = self._get_reward()
@@ -76,8 +50,7 @@ class SafeMotionsEnv(actions.AccelerationPredictionBoundedJerkAccVelPos,
 
     def _store_action_list(self):
         action_dict = {'actions': np.asarray(self._action_list).tolist()}
-        eval_dir = os.path.join(project_dir, "evalution", "action_logs",
-                                self.__class__.__name__, self._experiment_name, self._timestamp)
+        eval_dir = os.path.join(self._evaluation_dir, "action_logs")
 
         if not os.path.exists(eval_dir):
             try:
@@ -86,47 +59,6 @@ class SafeMotionsEnv(actions.AccelerationPredictionBoundedJerkAccVelPos,
                 if exc.errno != errno.EEXIST:
                     raise
 
-        with open(os.path.join(eval_dir, "episode_" + str(self._episode_counter) + ".json"), 'w') as f:
+        with open(os.path.join(eval_dir, "episode_{}_{}.json".format(self._episode_counter, self.pid)), 'w') as f:
             f.write(json.dumps(action_dict))
             f.flush()
-
-    def _create_metadata(self):
-        return {'episode_id': self._episode_counter, 'trajectory_length': self._trajectory_manager.trajectory_length,
-                'episode_length': self._episode_length, 'total_reward': self._total_reward}
-
-    def _close_video_recorder(self):
-        super()._close_video_recorder()
-        if self._renderer == OPENGL_GUI_RENDERER:
-            self._adapt_rendering_metadata()
-            self._rename_output_files()
-
-    def _adapt_rendering_metadata(self):
-        metadata_ext = ".meta.json"
-        metadata_file = self._video_base_path + metadata_ext
-
-        with open(metadata_file, 'r') as f:
-            metadata_json = json.load(f)
-
-            encoder_metadata = metadata_json.pop('encoder_version', None)
-            if encoder_metadata:
-                metadata_json.update(encoder=encoder_metadata['backend'])
-
-            metadata_json.update(trajectory_length=self._trajectory_manager.trajectory_length)
-            metadata_json.update(episode_length=self._episode_length)
-            metadata_json.update(total_reward=round(self._total_reward, 3))
-
-        with open(metadata_file, 'w') as f:
-            f.write(json.dumps(metadata_json, indent=4))
-            f.close()
-
-    def _rename_output_files(self):
-        output_file = glob(self._video_base_path + ".*")
-
-        for file in output_file:
-            dir_path, file_name = os.path.split(file)
-            name, extension = os.path.splitext(file_name)
-            new_name = "_".join(map(str, [name, self._episode_length,
-                                          self._robot_scene.obstacle_wrapper.get_num_target_points_reached(),
-                                          round(self._total_reward, 3)]))
-            new_file_name = new_name + extension
-            os.rename(file, os.path.join(dir_path, new_file_name))

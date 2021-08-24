@@ -5,6 +5,7 @@
 
 import logging
 from abc import ABC
+
 import numpy as np
 from gym.spaces import Box
 from safemotions.envs.safe_motions_base import SafeMotionsBase
@@ -16,14 +17,24 @@ def normalize_joint_values(values, joint_limits):
 
 def _normalize_joint_values_min_max(values, joint_limit_ranges):
     normalized_values = -1 + 2 * (values - joint_limit_ranges[0]) / (joint_limit_ranges[1] - joint_limit_ranges[0])
+    continuous_joint_indices = np.isnan(joint_limit_ranges[0]) | np.isnan(joint_limit_ranges[1])
+    if np.any(continuous_joint_indices):
+        # continuous joint -> map [-np.pi, np.pi] and all values shifted by 2 * np.pi to [-1, 1]
+        normalized_values[continuous_joint_indices] = \
+            -1 + 2 * (((values[continuous_joint_indices] + np.pi)/(2 * np.pi)) % 1)
     return list(normalized_values)
+
+
+TARGET_POINT_SIMULTANEOUS = 0
+TARGET_POINT_ALTERNATING = 1
+TARGET_POINT_SINGLE = 2
 
 
 class SafeObservation(ABC, SafeMotionsBase):
 
     def __init__(self,
                  *vargs,
-                 m_prev=1,
+                 m_prev=0,
                  obs_add_target_point_pos=False,
                  obs_add_target_point_relative_pos=False,
                  **kwargs):
@@ -41,12 +52,15 @@ class SafeObservation(ABC, SafeMotionsBase):
 
         if self._robot_scene.obstacle_wrapper.use_target_points:
             if obs_add_target_point_pos:
-                obs_target_point_size += 3 * self._robot_scene.num_robots
+                if self._robot_scene.obstacle_wrapper.target_point_sequence == TARGET_POINT_SINGLE:
+                    obs_target_point_size += 3  # one target point only
+                else:
+                    obs_target_point_size += 3 * self._robot_scene.num_robots  # one target point per robot
 
             if obs_add_target_point_relative_pos:
                 obs_target_point_size += 3 * self._robot_scene.num_robots
 
-            if self._robot_scene.obstacle_wrapper.target_point_sequence != 0:
+            if self._robot_scene.obstacle_wrapper.target_point_sequence == TARGET_POINT_ALTERNATING:
                 obs_target_point_size += self._robot_scene.num_robots  # target point active signal for each robot
 
         self._observation_size = self._m_prev * self._num_manip_joints + obs_current_size * self._num_manip_joints \
@@ -122,6 +136,9 @@ class SafeObservation(ABC, SafeMotionsBase):
             info['max']['joint_{}_pos'.format(j)] = curr_joint_positions_rel_obs[j]
             info['min']['joint_{}_pos'.format(j)] = curr_joint_positions_rel_obs[j]
             if abs(curr_joint_positions_rel_obs[j]) > 1.001:
+                logging.warning("Position violation: t = %s Joint: %s Rel position %s",
+                                (self._episode_length - 1) * self._trajectory_time_step, j,
+                                curr_joint_positions_rel_obs[j])
                 pos_violation = 1.0
 
             info['average']['joint_{}_vel'.format(j)] = curr_joint_velocity_rel_obs[j]
@@ -129,6 +146,9 @@ class SafeObservation(ABC, SafeMotionsBase):
             info['max']['joint_{}_vel'.format(j)] = curr_joint_velocity_rel_obs[j]
             info['min']['joint_{}_vel'.format(j)] = curr_joint_velocity_rel_obs[j]
             if abs(curr_joint_velocity_rel_obs[j]) > 1.001:
+                logging.warning("Velocity violation: t = %s Joint: %s Rel velocity %s",
+                                (self._episode_length - 1) * self._trajectory_time_step, j,
+                                curr_joint_velocity_rel_obs[j])
                 vel_violation = 1.0
 
             info['average']['joint_{}_acc'.format(j)] = curr_joint_acceleration_rel_obs[j]
@@ -136,6 +156,9 @@ class SafeObservation(ABC, SafeMotionsBase):
             info['max']['joint_{}_acc'.format(j)] = curr_joint_acceleration_rel_obs[j]
             info['min']['joint_{}_acc'.format(j)] = curr_joint_acceleration_rel_obs[j]
             if abs(curr_joint_acceleration_rel_obs[j]) > 1.001:
+                logging.warning("Acceleration violation: t = %s Joint: %s Rel acceleration %s",
+                                (self._episode_length - 1) * self._trajectory_time_step, j,
+                                curr_joint_acceleration_rel_obs[j])
                 acc_violation = 1.0
 
         info['max']['joint_pos_violation'] = pos_violation

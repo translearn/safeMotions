@@ -32,3 +32,7 @@ class SimRobotScene(RobotSceneBase):
         joint_states_swap = np.swapaxes(np.array(joint_states, dtype=object), 0, 1)
 
         return joint_states_swap[0], joint_states_swap[1]
+
+    @staticmethod
+    def send_command_to_trajectory_controller(target_positions, **kwargs):
+        pass

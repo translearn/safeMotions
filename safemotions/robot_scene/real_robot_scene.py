@@ -60,7 +60,7 @@ class RealRobotScene(RobotSceneBase):
                           computed_velocity_is=None, **kwargs):
         if physics_client_id is None:
             if not self._real_robot_debug_mode:
-                self._send_command_to_trajectory_controller(target_positions, **kwargs)
+                self.send_command_to_trajectory_controller(target_positions, **kwargs)
             if self._simulation_client_id is not None and \
                     computed_position_is is not None \
                     and computed_velocity_is is not None:
@@ -73,8 +73,8 @@ class RealRobotScene(RobotSceneBase):
         else:
             super().set_motor_control(target_positions, physics_client_id=physics_client_id, **kwargs)
 
-    @abstractmethod
-    def _send_command_to_trajectory_controller(self, target_positions, **kwargs):
+    @staticmethod
+    def send_command_to_trajectory_controller(target_positions, **kwargs):
         raise NotImplementedError()
 
     @abstractmethod

@@ -6,7 +6,7 @@ with open(os.path.join(os.path.abspath(os.path.dirname(__file__)), 'README.md'),
     readme_file = f.read()
 
 setup(name='safemotions',
-      version='0.2.8',
+      version='1.0.0',
       packages=find_packages(),
       include_package_data=True,
       author='Jonas C. Kiemel',
@@ -17,7 +17,7 @@ setup(name='safemotions',
       long_description_content_type='text/markdown',
       license='MIT',
       classifiers=[
-          "License :: OSI Approved :: MIT License", 
+          "License :: OSI Approved :: MIT License",
           "Intended Audience :: Developers",
           'Programming Language :: Python :: 3.6',
           'Programming Language :: Python :: 3.7',
@@ -26,10 +26,11 @@ setup(name='safemotions',
       python_requires='>=3.5',
       install_requires=[
           'numpy',
-          'klimits',
+          'klimits>=1.1.1',
           'matplotlib',
           'pybullet',
-          'gym' 
+          'gym',
+          'Pillow'
       ],
-      extras_require={'train': ['ray[tune]==0.8.4', 'ray[rllib]==0.8.4', 'tensorflow']}
+      extras_require={'train': ['ray[rllib]', 'tensorflow']}
       )
