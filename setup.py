@@ -1,12 +1,22 @@
 import os
+import re
 from setuptools import find_packages
 from setuptools import setup
+
+
+def get_version():
+    with open(os.path.join(os.path.abspath(os.path.dirname(__file__)),
+                           'safemotions', '__init__.py'), encoding='utf-8') as f:
+        init_file = f.read()
+        version = re.search(r"__version__\W*=\W*'([^']+)'", init_file)
+        return version.group(1) if version is not None else '0.0.0'
+
 
 with open(os.path.join(os.path.abspath(os.path.dirname(__file__)), 'README.md'), encoding='utf-8') as f:
     readme_file = f.read()
 
 setup(name='safemotions',
-      version='1.0.0',
+      version=get_version(),
       packages=find_packages(),
       include_package_data=True,
       author='Jonas C. Kiemel',

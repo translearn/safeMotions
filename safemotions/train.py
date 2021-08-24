@@ -290,12 +290,12 @@ if __name__ == '__main__':
     if args.last_layer_activation is not None and args.last_layer_activation != 'linear':
         use_keras_model = True
         if use_keras_model:
-            from model.keras_fcnet_last_layer_activation import FullyConnectedNetworkLastLayerActivation
+            from safemotions.model.keras_fcnet_last_layer_activation import FullyConnectedNetworkLastLayerActivation
             ModelCatalog.register_custom_model('keras_fcnet_last_layer_activation',
                                                FullyConnectedNetworkLastLayerActivation)
             config['model']['custom_model'] = 'keras_fcnet_last_layer_activation'
         else:
-            from model.fcnet_v2_last_layer_activation import FullyConnectedNetworkLastLayerActivation
+            from safemotions.model.fcnet_v2_last_layer_activation import FullyConnectedNetworkLastLayerActivation
             ModelCatalog.register_custom_model('fcnet_last_layer_activation', FullyConnectedNetworkLastLayerActivation)
             config['model']['custom_model'] = 'fcnet_last_layer_activation'
 

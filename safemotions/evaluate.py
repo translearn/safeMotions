@@ -432,10 +432,10 @@ if __name__ == '__main__':
     if 'custom_model' in checkpoint_config['model']:
         from ray.rllib.models import ModelCatalog
         if checkpoint_config['model']['custom_model'] == 'fcnet_last_layer_activation':
-            from model.fcnet_v2_last_layer_activation import FullyConnectedNetworkLastLayerActivation
+            from safemotions.model.fcnet_v2_last_layer_activation import FullyConnectedNetworkLastLayerActivation
             ModelCatalog.register_custom_model('fcnet_last_layer_activation', FullyConnectedNetworkLastLayerActivation)
         if checkpoint_config['model']['custom_model'] == 'keras_fcnet_last_layer_activation':
-            from model.keras_fcnet_last_layer_activation import FullyConnectedNetworkLastLayerActivation
+            from safemotions.model.keras_fcnet_last_layer_activation import FullyConnectedNetworkLastLayerActivation
             ModelCatalog.register_custom_model('keras_fcnet_last_layer_activation',
                                                FullyConnectedNetworkLastLayerActivation)
             for key in ['fcnet_hiddens', 'fcnet_activation', 'post_fcnet_hiddens', 'post_fcnet_activation',
