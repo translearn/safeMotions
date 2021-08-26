@@ -131,7 +131,7 @@ class RobotSceneBase(object):
             try:
                 import armar
                 urdf_path = armar.get_path_to_urdf_file(robot_name=robot_urdf)
-            except ImportError:
+            except ModuleNotFoundError:
                 raise ValueError("Support for ARMAR robots requires the armar module. "
                                  "Run 'pip install armar' to install the module.")
         else:
