@@ -42,5 +42,5 @@ setup(name='safemotions',
           'gym',
           'Pillow'
       ],
-      extras_require={'train': ['ray[rllib]', 'tensorflow']}
+      extras_require={'train': ['aioredis==1.3.1', 'ray[default]==1.4.1', 'ray[rllib]==1.4.1', 'tensorflow']}
       )

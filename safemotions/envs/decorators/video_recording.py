@@ -154,11 +154,12 @@ class VideoRecordingManager(ABC, SafeMotionsBase):
             cam_dist = 2.3000
             cam_target_pos = (0.000, 0, 0.5800000429153442)
             roll = 0
-            gpu_support = 'CUDA' in os.environ['PATH'].upper() if 'PATH' in os.environ else False
-            p.configureDebugVisualizer(p.COV_ENABLE_SHADOWS, 1, lightPosition=[-15, 0, 28],
-                                       shadowMapResolution=16384 if gpu_support else 4096,
-                                       physicsClientId=self._gui_client_id)
-            # set shadowMapResolution to 4096 when running the code without a dedicated GPU and to 16384 otherwise
+            if self._gui_client_id is not None:
+                gpu_support = 'CUDA' in os.environ['PATH'].upper() if 'PATH' in os.environ else False
+                p.configureDebugVisualizer(p.COV_ENABLE_SHADOWS, 1, lightPosition=[-15, 0, 28],
+                                           shadowMapResolution=16384 if gpu_support else 4096,
+                                           physicsClientId=self._gui_client_id)
+                # set shadowMapResolution to 4096 when running the code without a dedicated GPU and to 16384 otherwise
         else:
             raise ValueError("camera_angle {} is not defined".format(camera_angle))
 
