@@ -10,6 +10,7 @@ from abc import abstractmethod
 from pathlib import Path
 from threading import Thread
 from multiprocessing import Pool
+from functools import partial
 import datetime
 
 import gym
@@ -285,7 +286,7 @@ class SafeMotionsBase(gym.Env):
             self._pybullet_renderer = None
 
         if self._use_gui and self._switch_gui:
-            self._obstacle_client_id = p.connect(p.GUI)
+            self._obstacle_client_id = p.connect(p.GUI, options=pybullet_options)
             self._gui_client_id = self._obstacle_client_id
         else:
             self._obstacle_client_id = p.connect(p.DIRECT)
@@ -296,6 +297,11 @@ class SafeMotionsBase(gym.Env):
         for i in range(self._num_physic_clients):
             p.resetSimulation(physicsClientId=i)  # to free memory
 
+        if self._render_video and self._use_gui and self._switch_gui:
+            capture_frame_function = partial(self._capture_frame_with_video_recorder, frames=2)
+        else:
+            capture_frame_function = None
+
         # robot scene settings
         robot_scene_parameters = {'simulation_client_id': self._simulation_client_id,
                                   'simulation_time_step': self._simulation_time_step,
@@ -305,6 +311,7 @@ class SafeMotionsBase(gym.Env):
                                   'robot_scene': self._robot_scene_config,
                                   'obstacle_scene': self._obstacle_scene,
                                   'visual_mode': self._use_gui or self._render_video,
+                                  'capture_frame_function': capture_frame_function,
                                   'activate_obstacle_collisions': self._activate_obstacle_collisions,
                                   'observed_link_point_scene': self._observed_link_point_scene,
                                   'log_obstacle_data': self._log_obstacle_data,

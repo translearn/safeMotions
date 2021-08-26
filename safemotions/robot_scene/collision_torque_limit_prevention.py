@@ -1618,7 +1618,8 @@ class ObstacleWrapperSim(ObstacleWrapperBase):
         return compute_distance_c(pos_a[0], pos_a[1], pos_a[2], pos_b[0], pos_b[1], pos_b[2], radius_a, radius_b)
 
     def set_robot_position_in_obstacle_client(self, manip_joint_indices=None, target_position=None,
-                                              target_velocity=None, set_to_setpoints=False, set_to_actual_values=False):
+                                              target_velocity=None, set_to_setpoints=False, set_to_actual_values=False,
+                                              capture_frame=False):
         # set robot with physicsClientId self._obstacle_client_id to a specified position
         if set_to_setpoints and set_to_actual_values:
             raise ValueError("set_to_setpoints and set_to_actual_values are not allowed to be True at the same time")
@@ -1653,6 +1654,9 @@ class ObstacleWrapperSim(ObstacleWrapperBase):
                                    targetValues=[[pos] for pos in target_position],
                                    targetVelocities=[[vel] for vel in target_velocity],
                                    physicsClientId=self._obstacle_client_id)
+
+        if capture_frame and self._robot_scene.capture_frame_function is not None:
+            self._robot_scene.capture_frame_function()
 
     def _consider_bounding_sphere(self, pos_a, pos_b, radius_a, radius_b):
         if not np.array_equal(pos_a, pos_b):
@@ -1859,7 +1863,8 @@ class ObstacleWrapperSim(ObstacleWrapperBase):
         # returns minimum_distance, collision_found, affected_link_index_list, affected_observed_point
         self.set_robot_position_in_obstacle_client(manip_joint_indices=manip_joint_indices,
                                                    target_position=target_position,
-                                                   target_velocity=None)
+                                                   target_velocity=None,
+                                                   capture_frame=True)
 
         minimum_distance = self._closest_point_maximum_relevant_distance
 
@@ -2546,7 +2551,7 @@ class LinkBase(object):
 
         self._set_robot_position_in_obstacle_client_function = set_robot_position_in_obstacle_client_function
         self._is_obstacle_client_at_other_position_function = is_obstacle_client_at_other_position_function
-        self.set_color(None)
+        self.set_color(rgba_color=None, obstacle_client=True)
 
     def get_local_position(self, world_position, actual=True):
         def_orn = p.getQuaternionFromEuler([0, 0, 0])
@@ -2608,7 +2613,7 @@ class LinkBase(object):
                     self._orn_set = link_state[5]
                 return self._position_set
 
-    def set_color(self, rgba_color):
+    def set_color(self, rgba_color, obstacle_client=False):
         if rgba_color is None:
             rgba_color = self._default_color
         if rgba_color != self._color:
@@ -2616,6 +2621,9 @@ class LinkBase(object):
             if self._simulation_client_id is not None:
                 p.changeVisualShape(self._robot_id, self._index, -1,
                                     rgbaColor=rgba_color, physicsClientId=self._simulation_client_id)
+            if obstacle_client and self._obstacle_client_id is not None:
+                p.changeVisualShape(self._robot_id, self._index, -1,
+                                    rgbaColor=rgba_color, physicsClientId=self._obstacle_client_id)
 
     def clear_previous_timestep(self):
         self._position_actual = None

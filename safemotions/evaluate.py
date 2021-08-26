@@ -232,7 +232,10 @@ if __name__ == '__main__':
     parser.add_argument('--use_real_robot', action='store_true', default=None)
     parser.add_argument('--real_robot_debug_mode', dest='real_robot_debug_mode', action='store_true', default=False)
     parser.add_argument('--use_gui', action='store_true', default=False)
+    parser.add_argument('--switch_gui', action='store_true', default=False)
     parser.add_argument('--online_trajectory_duration', type=float, default=None)
+    parser.add_argument('--check_braking_trajectory_collisions', action='store_true', default=False)
+    parser.add_argument('--check_braking_trajectory_torque_limits', action='store_true', default=False)
     parser.add_argument('--collision_check_time', type=float, default=None)
     parser.add_argument('--store_metrics', action='store_true', default=False)
     parser.add_argument('--plot_trajectory', action='store_true', default=False)
@@ -340,6 +343,9 @@ if __name__ == '__main__':
     if args.save_trajectory_plot:
         env_config['save_trajectory_plot'] = True
 
+    if args.switch_gui:
+        env_config['switch_gui'] = True
+
     if args.plot_actual_torques:
         env_config['plot_actual_torques'] = True
 
@@ -419,6 +425,12 @@ if __name__ == '__main__':
     if 'use_braking_trajectory_method' in env_config:  # for compatibility with older versions
         env_config['check_braking_trajectory_collisions'] = env_config['use_braking_trajectory_method']
         del env_config['use_braking_trajectory_method']
+
+    if args.check_braking_trajectory_collisions:
+        env_config['check_braking_trajectory_collisions'] = True
+
+    if args.check_braking_trajectory_torque_limits:
+        env_config['check_braking_trajectory_torque_limits'] = True
 
     checkpoint_config['env_config'] = env_config
 

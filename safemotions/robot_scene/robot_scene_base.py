@@ -37,6 +37,7 @@ class RobotSceneBase(object):
                  observed_link_point_scene=0,
                  log_obstacle_data=False,
                  visual_mode=False,
+                 capture_frame_function=None,
                  visualize_bounding_spheres=False,
                  acc_range_function=None,
                  acc_braking_function=None,
@@ -69,6 +70,7 @@ class RobotSceneBase(object):
         self._obstacle_client_id = obstacle_client_id
         self._use_real_robot = use_real_robot
         self._trajectory_time_step = trajectory_time_step
+        self.capture_frame_function = capture_frame_function
 
         self._num_clients = 0
         if self._simulation_client_id is not None:

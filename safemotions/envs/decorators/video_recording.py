@@ -193,15 +193,15 @@ class VideoRecordingManager(ABC, SafeMotionsBase):
         super()._prepare_for_end_of_episode()
 
         if self._render_video:
-            self._capture_frame_with_video_recorder()
-            for _ in range(int(self._video_frame_rate) - 1):
-                self._video_recorder._encode_image_frame(self._video_recorder.last_frame)
+            self._capture_frame_with_video_recorder(frames=int(self._video_frame_rate))
             if self._video_recorder:
                 self._close_video_recorder()
 
-    def _capture_frame_with_video_recorder(self):
+    def _capture_frame_with_video_recorder(self, frames=1):
         self._sim_step_counter = 0
         self._video_recorder.capture_frame()
+        for _ in range(frames - 1):
+            self._video_recorder._encode_image_frame(self._video_recorder.last_frame)
 
     @property
     def metadata(self):
@@ -235,20 +235,20 @@ class VideoRecordingManager(ABC, SafeMotionsBase):
 
         self._video_recorder = VideoRecorder(self, base_path=self._video_base_path, metadata=metadata, enabled=True)
 
-        self._capture_frame_with_video_recorder()
-        for _ in range(int(self._video_frame_rate) - 1):
-            self._video_recorder._encode_image_frame(self._video_recorder.last_frame)
+        self._capture_frame_with_video_recorder(frames=int(self._video_frame_rate))
 
     def render(self, mode="human"):
         if mode == "human":
             return np.array([])
         else:
+            physics_client_id = self._simulation_client_id if not self._switch_gui else self._obstacle_client_id
             (_, _, image, _, _) = p.getCameraImage(width=self._video_width, height=self._video_height,
                                                    renderer=self._pybullet_renderer,
                                                    viewMatrix=self._view_matrix,
                                                    projectionMatrix=self._projection_matrix,
                                                    shadow=0, lightDirection=[-20, -0.5, 150],
-                                                   flags=p.ER_NO_SEGMENTATION_MASK)
+                                                   flags=p.ER_NO_SEGMENTATION_MASK,
+                                                   physicsClientId=physics_client_id)
             image = np.reshape(image, (self._video_height, self._video_width, 4))
             image = np.uint8(image[:, :, :3])
 
