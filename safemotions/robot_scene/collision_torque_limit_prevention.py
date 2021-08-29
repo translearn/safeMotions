@@ -651,8 +651,11 @@ class ObstacleWrapperSim(ObstacleWrapperBase):
                                                                 range(len(obstacle.link_data))]
 
             for i in range(len(self._links)):
-                info['obstacles_self_collision_data_link_' + str(i)] = \
-                    self._links[i].self_collision_data.export_metrics()
+                export_link_pair = [self._links[i].closest_point_active or
+                                    self._links[self._links[i].self_collision_links[j]].closest_point_active
+                                    for j in range(len(self._links[i].self_collision_links))]
+                info['obstacles_self_collision_data_link_' + str(i) + '_' + self._links[i].name] = \
+                    self._links[i].self_collision_data.export_metrics(export_link_pair=export_link_pair)
 
         if self._print_stats:
             if (self._episode_counter % print_stats_every_n_episodes) == 0:
@@ -1056,14 +1059,14 @@ class ObstacleWrapperSim(ObstacleWrapperBase):
                     if robot is not None and attempts_counter > attempts / 2:
                         # ignore torque violation to find at least a collision-free position for a target point
                         logging.warning("Ignored torque violation to find a collision-free target point. Robot: %s, "
-                                        "Normalized torques: ", robot, normalized_joint_torques)
+                                        "Normalized torques: %s", robot, normalized_joint_torques)
                     else:
                         valid_pos_found = False
                         reason = "Torque violation: " + str(normalized_joint_torques)
 
             if valid_pos_found and self_collision_ignored_links is not None:
                 logging.warning("Ignored self_collision to find a collision-free target point. Robot: %s, "
-                                "Ignored links: ", robot, self_collision_ignored_links)
+                                "Ignored links: %s", robot, self_collision_ignored_links)
 
             if not valid_pos_found and attempts is not None and reason is not None and attempts_counter >= attempts:
                 raise ValueError("Could not find a valid collision-free robot position. "
@@ -2698,14 +2701,18 @@ class SelfCollisionData(object):
         self._closest_point_distance_actual = [[] for _ in range(self._num_self_collision_links)]
         self._closest_point_distance_set = [[] for _ in range(self._num_self_collision_links)]
 
-    def export_metrics(self):
+    def export_metrics(self, export_link_pair=None):
         export_dict = {}
+        if export_link_pair is None:
+            export_link_pair = [True] * len(self._closest_point_distance_actual)
         export_dict['closest_point_distance_actual_min'] = [np.min(
-            self._closest_point_distance_actual[i]) if self._closest_point_distance_actual[i] else None for i in
-                                                            range(len(self._closest_point_distance_actual))]
+            self._closest_point_distance_actual[i]) if self._closest_point_distance_actual[i] else None
+                                                            for i in range(len(self._closest_point_distance_actual))
+                                                            if export_link_pair[i]]
         export_dict['closest_point_distance_set_min'] = [np.min(
             self._closest_point_distance_set[i]) if self._closest_point_distance_set[i] else None for i in
-                                                         range(len(self._closest_point_distance_set))]
+                                                         range(len(self._closest_point_distance_set))
+                                                         if export_link_pair[i]]
 
         return export_dict
 
