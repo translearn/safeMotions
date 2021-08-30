@@ -16,7 +16,7 @@
     "check_braking_trajectory_torque_limits": false,
     "closest_point_safety_distance": 0.01,
     "collision_check_time": 0.033,
-    "experiment_name": "industrial_two_robots_collision_simultaneous",
+    "experiment_name": "industrial/two_robots/collision/simultaneous",
     "jerk_limit_factor": 1.0,
     "jerk_limit_factor_braking": 1.0,
     "klimits_version": "1.1.1",

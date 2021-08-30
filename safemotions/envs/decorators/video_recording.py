@@ -77,6 +77,13 @@ class VideoRecordingManager(ABC, SafeMotionsBase):
         self._projection_matrix = compute_projection_matrix()
         self._sim_step_counter = None
 
+        if self._gui_client_id is not None:
+            gpu_support = 'CUDA' in os.environ['PATH'].upper() if 'PATH' in os.environ else False
+            p.configureDebugVisualizer(p.COV_ENABLE_SHADOWS, 1, lightPosition=[-15, 0, 28],
+                                       shadowMapResolution=16384 if gpu_support else 4096,
+                                       physicsClientId=self._gui_client_id)
+            # set shadowMapResolution to 4096 when running the code without a dedicated GPU and to 16384 otherwise
+
     def compute_view_matrix(self, camera_angle=0):
         if camera_angle == 0:
             cam_target_pos = (0, 0, 0)
@@ -142,10 +149,10 @@ class VideoRecordingManager(ABC, SafeMotionsBase):
             roll = 0
 
         elif camera_angle == 9:
-            yaw = 91.20002746582031
-            pitch = -28.999988555908203
+            yaw = 90  # 91.20002746582031
+            pitch = -29.0
             cam_dist = 2.0000
-            cam_target_pos = (0.00036400588578544557, -0.04002757743000984, 0.5800000429153442)
+            cam_target_pos = (0.0, -0.04, 0.58)
             roll = 0
 
         elif camera_angle == 10:
@@ -154,12 +161,7 @@ class VideoRecordingManager(ABC, SafeMotionsBase):
             cam_dist = 2.3000
             cam_target_pos = (0.000, 0, 0.5800000429153442)
             roll = 0
-            if self._gui_client_id is not None:
-                gpu_support = 'CUDA' in os.environ['PATH'].upper() if 'PATH' in os.environ else False
-                p.configureDebugVisualizer(p.COV_ENABLE_SHADOWS, 1, lightPosition=[-15, 0, 28],
-                                           shadowMapResolution=16384 if gpu_support else 4096,
-                                           physicsClientId=self._gui_client_id)
-                # set shadowMapResolution to 4096 when running the code without a dedicated GPU and to 16384 otherwise
+
         else:
             raise ValueError("camera_angle {} is not defined".format(camera_angle))
 

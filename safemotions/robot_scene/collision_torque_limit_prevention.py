@@ -1733,6 +1733,8 @@ class ObstacleWrapperSim(ObstacleWrapperBase):
                 execute_braking_trajectory = True
                 adaptation_punishment = 1.0
 
+            self._braking_duration_list.append(self._braking_duration)
+
             if execute_braking_trajectory:
                 if self._active_braking_influence_time == 0:
                     if len(self._braking_duration_list) > 0:
@@ -1770,8 +1772,6 @@ class ObstacleWrapperSim(ObstacleWrapperBase):
                         # remove current and next kinematic state
                 else:
                     self._valid_braking_trajectories['current'] = None
-
-            self._braking_duration_list.append(self._braking_duration)
 
             if self._visual_mode:
                 # set colors for each link
