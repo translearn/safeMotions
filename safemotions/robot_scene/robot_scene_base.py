@@ -388,13 +388,27 @@ class RobotSceneBase(object):
         return tuple(joint_indices), joint_indices_per_robot
 
     def set_motor_control(self, target_positions, mode=p.POSITION_CONTROL, physics_client_id=0,
-                          manip_joint_indices=None, **kwargs):
+                          manip_joint_indices=None, use_max_force=False, **kwargs):
         # overwritten by real robot scene
         if manip_joint_indices is None:
             manip_joint_indices = self._manip_joint_indices
-        p.setJointMotorControlArray(self._robot_id, manip_joint_indices,
-                                    mode, targetPositions=target_positions,
-                                    physicsClientId=physics_client_id)
+
+        if use_max_force:
+            if manip_joint_indices != self._manip_joint_indices:
+                joint_limit_indices = np.array([i for i in range(len(self._manip_joint_indices))
+                                                if self._manip_joint_indices[i] in manip_joint_indices])
+                max_forces = self._max_torques[joint_limit_indices]
+            else:
+                max_forces = self._max_torques
+
+            p.setJointMotorControlArray(self._robot_id, manip_joint_indices,
+                                        mode, targetPositions=target_positions,
+                                        forces=max_forces,
+                                        physicsClientId=physics_client_id)
+        else:
+            p.setJointMotorControlArray(self._robot_id, manip_joint_indices,
+                                        mode, targetPositions=target_positions,
+                                        physicsClientId=physics_client_id)
 
     def get_actual_joint_torques(self, physics_client_id=0, manip_joint_indices=None):
         # overwritten by reality wrapper
