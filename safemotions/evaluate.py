@@ -245,6 +245,7 @@ if __name__ == '__main__':
     parser.add_argument('--plot_actual_torques', action='store_true', default=False)
     parser.add_argument('--plot_computed_actual_values', action='store_true', default=False)
     parser.add_argument('--plot_joint', type=json.loads, default=None)
+    parser.add_argument('--torque_limit_factor', type=float, default=None)
     parser.add_argument('--store_actions', action='store_true', default=False)
     parser.add_argument('--store_network_data', action='store_true', default=False)
     parser.add_argument('--no_exploration', action='store_true', default=False)
@@ -385,6 +386,9 @@ if __name__ == '__main__':
 
     if args.collision_check_time is not None:
         env_config['collision_check_time'] = args.collision_check_time
+
+    if args.torque_limit_factor is not None:
+        env_config['torque_limit_factor'] = args.torque_limit_factor
 
     if args.solver_iterations:
         env_config['solver_iterations'] = args.solver_iterations
