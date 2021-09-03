@@ -145,6 +145,8 @@ def rollout_multiple_workers():
 def rollout_single_worker_manually():
     episodes_sampled = 0
     episode_computation_time_list = []
+    episode_control_phase_list = []
+    episode_trajectory_duration_list = []
     start = time.time()
 
     if args.seed is not None:
@@ -195,8 +197,12 @@ def rollout_single_worker_manually():
         logging.info("Computing episode %s took %s seconds", episodes_sampled + 1, episode_computation_time)
         episode_computation_time_list.append(episode_computation_time)
         if env.precomputation_time is not None:
+            control_phase_duration = episode_computation_time - env.precomputation_time
+            trajectory_duration = (steps + 1) * env.trajectory_time_step
             logging.info("Trajectory duration: %s seconds. Control phase: %s seconds.",
-                         (steps + 1) * env.trajectory_time_step, episode_computation_time - env.precomputation_time)
+                         trajectory_duration, control_phase_duration)
+            episode_control_phase_list.append(control_phase_duration)
+            episode_trajectory_duration_list.append(trajectory_duration)
         else:
             logging.info("Trajectory duration: %s seconds", (steps + 1) * env.trajectory_time_step)
         logging.info("Episode reward: %s", reward_total)
@@ -215,6 +221,13 @@ def rollout_single_worker_manually():
     logging.info("Mean computation time: %s seconds, Max computation time: %s seconds.",
                  np.mean(episode_computation_time_list),
                  np.max(episode_computation_time_list))
+    if episode_control_phase_list:
+        max_relative_delay = (np.max(np.array(episode_control_phase_list) /
+                                     np.array(episode_trajectory_duration_list)) - 1) * 100
+        logging.info("Mean control phase: %s seconds, Max control phase: %s seconds. Max delay: %s percent.",
+                     np.mean(episode_control_phase_list),
+                     np.max(episode_control_phase_list),
+                     max_relative_delay)
 
 
 if __name__ == '__main__':
