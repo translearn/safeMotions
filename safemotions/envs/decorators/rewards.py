@@ -49,8 +49,6 @@ class TargetPointReachingReward(ABC, SafeMotionsBase):
                  target_point_reward_factor=1.0,
                  **kwargs):
 
-        super().__init__(*vargs, **kwargs)
-
         # reward settings
         self.reward_range = [0, 1]
         self._normalize_reward_to_frequency = normalize_reward_to_frequency
@@ -77,6 +75,7 @@ class TargetPointReachingReward(ABC, SafeMotionsBase):
         self._max_torque_min_threshold = braking_trajectory_max_torque_min_threshold
 
         self._target_point_reward_factor = target_point_reward_factor
+        self._reward_maximum_relevant_distance = None
 
         if self._punish_braking_trajectory_min_distance or self._punish_end_min_distance:
             if self._punish_braking_trajectory_min_distance and \
@@ -89,14 +88,14 @@ class TargetPointReachingReward(ABC, SafeMotionsBase):
                                  "end_min_distance_max_threshold to be specified")
 
             if self._punish_braking_trajectory_min_distance and self._punish_end_min_distance:
-                end_min_distance_max_threshold = max(self._braking_trajectory_min_distance_max_threshold,
-                                                     self._end_min_distance_max_threshold)
+                self._reward_maximum_relevant_distance = max(self._braking_trajectory_min_distance_max_threshold,
+                                                             self._end_min_distance_max_threshold)
             elif self._punish_braking_trajectory_min_distance:
-                end_min_distance_max_threshold = self._braking_trajectory_min_distance_max_threshold
+                self._reward_maximum_relevant_distance = self._braking_trajectory_min_distance_max_threshold
             else:
-                end_min_distance_max_threshold = self._end_min_distance_max_threshold
+                self._reward_maximum_relevant_distance = self._end_min_distance_max_threshold
 
-            self._robot_scene.obstacle_wrapper.set_maximum_relevant_distance(end_min_distance_max_threshold)
+        super().__init__(*vargs, **kwargs)
 
     def _get_reward(self):
         info = {'average': {'reward': 0,  'action_punishment': 0, 'target_point_reward': 0,
@@ -142,7 +141,7 @@ class TargetPointReachingReward(ABC, SafeMotionsBase):
             if self._punish_end_max_torque:
                 if self._end_max_torque is not None:
                     # None if check_braking_trajectory is False and asynchronous movement execution is active
-                    # in this case, no penality is computed, but the penalty is not required anyways
+                    # in this case, no penalty is computed, but the penalty is not required anyways
                     end_max_torque_punishment = self._compute_quadratic_punishment(
                         a=self._end_max_torque,
                         b=self._end_max_torque_min_threshold,
@@ -250,4 +249,8 @@ class TargetPointReachingReward(ABC, SafeMotionsBase):
         max_action_abs = max(action_abs)
         return self._compute_quadratic_punishment(max_action_abs, self._action_punishment_min_threshold,
                                                   1, self._action_punishment_min_threshold)
+
+    @property
+    def reward_maximum_relevant_distance(self):
+        return self._reward_maximum_relevant_distance
 

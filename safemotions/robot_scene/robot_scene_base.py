@@ -63,6 +63,7 @@ class RobotSceneBase(object):
                  acc_limit_factor=1,
                  jerk_limit_factor=1,
                  torque_limit_factor=1,
+                 reward_maximum_relevant_distance=None,
                  **kwargs):
 
         self._simulation_client_id = simulation_client_id
@@ -234,7 +235,8 @@ class RobotSceneBase(object):
                                target_point_use_actual_position=target_point_use_actual_position,
                                target_link_name=target_link_name,
                                target_link_offset=target_link_offset,
-                               visualize_bounding_spheres=visualize_bounding_spheres
+                               visualize_bounding_spheres=visualize_bounding_spheres,
+                               reward_maximum_relevant_distance=reward_maximum_relevant_distance,
                                )
 
         self._joint_lower_limits = None
@@ -342,7 +344,6 @@ class RobotSceneBase(object):
     @property
     def robot_name(self):
         return self._robot_name
-
 
     @property
     def num_clients(self):

@@ -342,7 +342,8 @@ class SafeMotionsBase(gym.Env):
                                   'vel_limit_factor': self._vel_limit_factor,
                                   'acc_limit_factor': self._acc_limit_factor,
                                   'jerk_limit_factor': self._jerk_limit_factor,
-                                  'torque_limit_factor': self._torque_limit_factor
+                                  'torque_limit_factor': self._torque_limit_factor,
+                                  'reward_maximum_relevant_distance': self.reward_maximum_relevant_distance
                                   }
 
         if self._use_real_robot:
@@ -890,6 +891,10 @@ class ControlRate:
     @property
     def precomputation_time(self):
         return self._precomputation_time
+
+    @property
+    def reward_maximum_relevant_distance(self):
+        return None
 
     @property
     def control_rate(self):

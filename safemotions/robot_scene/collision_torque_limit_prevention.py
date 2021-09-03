@@ -56,6 +56,7 @@ class ObstacleWrapperBase:
                  target_point_reached_reward_bonus=0,
                  target_point_use_actual_position=False,
                  # True: Check if a target point is reached based on the actual position, False: Use setpoints
+                 reward_maximum_relevant_distance=None,
                  *vargs,
                  **kwargs):
 
@@ -212,9 +213,19 @@ class ObstacleWrapperBase:
         self._target_point_reached_reward_bonus = target_point_reached_reward_bonus
 
         self._target_point_use_actual_position = target_point_use_actual_position
-        self._closest_point_maximum_relevant_distance = self._closest_point_safety_distance + 0.002
-        # for performance purposes the exact distance between links / obstacles is only computed if the
-        # distance is smaller than self._closest_point_maximum_relevant_distance
+        if reward_maximum_relevant_distance is None:
+            self._closest_point_maximum_relevant_distance = self._closest_point_safety_distance + 0.002
+            # for performance purposes the exact distance between links / obstacles is only computed if the
+            # distance is smaller than self._closest_point_maximum_relevant_distance
+        else:
+            # set the maximum relevant distance for computing closest points based on the reward settings
+            # -> higher values require more computational effort
+            if reward_maximum_relevant_distance <= self._closest_point_safety_distance:
+                raise ValueError("reward_maximum_relevant_distance {} needs to be greater than "
+                                 "closest_point_safety_distance {}".format(reward_maximum_relevant_distance,
+                                                                           self._closest_point_safety_distance))
+            else:
+                self._closest_point_maximum_relevant_distance = reward_maximum_relevant_distance + 0.002
 
 
     @property
@@ -248,17 +259,6 @@ class ObstacleWrapperBase:
             num_target_points += len(self._target_point_list[i])
 
         return num_target_points
-
-    def set_maximum_relevant_distance(self, maximum_relevant_distance):
-        # called from rewards.py -> set the maximum relevant distance for computing closest points
-        # depends on the reward metrics -> higher values require more computational effort
-        if maximum_relevant_distance <= self._closest_point_safety_distance:
-            raise ValueError("maximum_relevant_distance {} needs to be greater than "
-                             "closest_point_safety_distance {}".format(maximum_relevant_distance,
-                                                                       self._closest_point_safety_distance))
-
-        else:
-            self._closest_point_maximum_relevant_distance = maximum_relevant_distance + 0.002
 
     def get_num_target_points_reached(self, robot=None):
         # if robot is None -> consider all robots, otherwise only the specified robot_index
