@@ -271,6 +271,7 @@ if __name__ == '__main__':
     parser.add_argument('--no_self_collision', action='store_true', default=False)
     parser.add_argument('--use_thread_for_movement', action='store_true', default=False)
     parser.add_argument('--use_process_for_movement', action='store_true', default=False)
+    parser.add_argument('--no_use_control_rate_sleep', action='store_true', default=False)
     parser.add_argument('--control_time_step', type=float, default=None)
     parser.add_argument('--time_step_fraction_sleep_observation', type=float, default=None)
     parser.add_argument("--logging_level", default='INFO', choices=['DEBUG', 'INFO', 'WARNING', 'ERROR'])
@@ -368,6 +369,9 @@ if __name__ == '__main__':
 
     if args.use_process_for_movement:
         env_config['use_process_for_movement'] = True
+
+    if args.no_use_control_rate_sleep:
+        env_config['use_control_rate_sleep'] = False
 
     if args.obstacle_use_computed_actual_values:
         env_config['obstacle_use_computed_actual_values'] = True
