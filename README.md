@@ -104,7 +104,7 @@ python -m safemotions.train --logdir=safemotions_training --name=industrial_one_
 The corresponding publication is available at [https://arxiv.org/abs/2103.03793](https://arxiv.org/abs/2103.03793).
 
 [![Video](https://user-images.githubusercontent.com/51738372/130771931-695e7a10-1958-463a-8d96-27e0af73652d.png
-)](https://www.youtube.com/watch?v=5YpUhMx1xZM)
+)](https://youtu.be/iZHmDjYfMF4)
 
 
 ## Disclaimer
