@@ -272,6 +272,7 @@ if __name__ == '__main__':
     parser.add_argument('--vf_clip_param', type=float, default=10.0)
     parser.add_argument('--entropy_coeff', type=float, default=0.0)
     parser.add_argument('--kl_target', type=float, default=0.01)
+    parser.add_argument('--fcnet_hiddens', type=json.loads, default=None)
     parser.add_argument('--action_distribution', default=None,
                         choices=['truncated_normal', 'truncated_normal_zero_kl', 'beta_alpha_beta'])
 
@@ -282,6 +283,8 @@ if __name__ == '__main__':
 
     env_name = 'SafeMotionsEnv'
     config['model']['fcnet_activation'] = args.hidden_layer_activation
+    if args.fcnet_hiddens is not None:
+        config['model']['fcnet_hiddens'] = args.fcnet_hiddens
     config['evaluation_interval'] = args.evaluation_interval
     config['vf_clip_param'] = args.vf_clip_param
     config['entropy_coeff'] = args.entropy_coeff
