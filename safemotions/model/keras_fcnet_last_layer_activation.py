@@ -44,6 +44,7 @@ class FullyConnectedNetworkLastLayerActivation(tf.keras.Model if tf else object)
             free_log_std: bool = False,
             last_layer_activation: str = None,
             no_log_std_activation: bool = False,
+            log_std_range: Optional[Sequence[float]] = (),
             output_intermediate_layers: bool = False,
             **kwargs,
     ):
@@ -76,6 +77,7 @@ class FullyConnectedNetworkLastLayerActivation(tf.keras.Model if tf else object)
         # The action distribution outputs.
         logits_out = None
         logits_intermediate_layers = []
+        self._log_std_range = log_std_range
         self._output_intermediate_layers = output_intermediate_layers
         self._intermediate_layer_names = []
         i = 1
@@ -181,6 +183,11 @@ class FullyConnectedNetworkLastLayerActivation(tf.keras.Model if tf else object)
             (TensorType, List[TensorType], Dict[str, TensorType]):
         model_out = self.base_model(input_dict[SampleBatch.OBS])
         logits_out = model_out[-2]
+        if self._log_std_range:
+            mean, log_std = tf.split(logits_out, 2, axis=1)
+            log_std = self._log_std_range[0] + 0.5 * (log_std + 1) * (self._log_std_range[1] -
+                                                                      self._log_std_range[0])
+            logits_out = tf.concat([mean, log_std], axis=1)
         value_out = model_out[-1]
         extra_outs = {SampleBatch.VF_PREDS: tf.reshape(value_out, [-1])}
         if self._output_intermediate_layers:

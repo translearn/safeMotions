@@ -12,6 +12,7 @@ import sys
 import inspect
 current_dir = os.path.dirname(os.path.abspath(inspect.getfile(inspect.currentframe())))
 sys.path.append(os.path.dirname(current_dir))
+import numpy as np
 import ray
 from ray import tune
 from ray.tune.logger import TBXLoggerCallback  # tensorboard fix ray 1.5 https://github.com/ray-project/ray/issues/17366
@@ -273,8 +274,10 @@ if __name__ == '__main__':
     parser.add_argument('--entropy_coeff', type=float, default=0.0)
     parser.add_argument('--kl_target', type=float, default=0.01)
     parser.add_argument('--fcnet_hiddens', type=json.loads, default=None)
+    parser.add_argument('--log_std_range', type=json.loads, default=None)
     parser.add_argument('--action_distribution', default=None,
                         choices=['truncated_normal', 'truncated_normal_zero_kl', 'beta_alpha_beta'])
+    parser.add_argument('--seed', type=int, default=None)
 
     args = parser.parse_args()
 
@@ -303,7 +306,8 @@ if __name__ == '__main__':
             config['model']['custom_model'] = 'fcnet_last_layer_activation'
 
         config['model']['custom_model_config'] = {'last_layer_activation': args.last_layer_activation,
-                                                  'no_log_std_activation': args.no_log_std_activation}
+                                                  'no_log_std_activation': args.no_log_std_activation,
+                                                  'log_std_range': args.log_std_range}
         if use_keras_model:
             for key in ['fcnet_hiddens', 'fcnet_activation', 'post_fcnet_hiddens', 'post_fcnet_activation',
                         'no_final_layer', 'vf_share_layers', 'free_log_std']:
@@ -360,6 +364,11 @@ if __name__ == '__main__':
         experiment_path = config['env_config']['experiment_name']
     else:
         experiment_path = os.path.join(args.logdir, config['env_config']['experiment_name'])
+
+    if args.seed is not None:
+        config['seed'] = args.seed
+        config['env_config']['seed'] = args.seed
+        np.random.seed(args.seed)
 
     if args.num_workers is None:
         config['num_workers'] = int(multiprocessing.cpu_count() * 0.75)
