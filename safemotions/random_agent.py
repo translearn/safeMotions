@@ -35,6 +35,7 @@ if __name__ == '__main__':
     parser.add_argument('--use_process_for_movement', action='store_true', default=False)
     parser.add_argument('--obstacle_use_computed_actual_values', action='store_true', default=False)
     parser.add_argument('--log_obstacle_data', action='store_true', default=False)
+    parser.add_argument('--visualize_bounding_spheres', action='store_true', default=False)
     parser.add_argument('--plot_trajectory', action='store_true', default=False)
     parser.add_argument('--plot_actual_values', action='store_true', default=False)
     parser.add_argument('--plot_acc_limits', action='store_true', default=False)
@@ -129,6 +130,8 @@ if __name__ == '__main__':
         num_joints = 17
     elif robot_scene == 5:
         num_joints = 33
+    elif robot_scene == 6:  # armar 4 with fixed hands and legs
+        num_joints = 18
     else:
         raise ValueError("robot_scene " + str(robot_scene) + " not defined")
 
@@ -192,7 +195,7 @@ if __name__ == '__main__':
     observed_link_point_scene = 0
     # 0: no observed link points, 1: observe link 6 and 7 with a single sphere,
     # 2: observe the robot body starting from link 3 with in total 6 spheres
-    visualize_bounding_spheres = False
+    visualize_bounding_spheres = args.visualize_bounding_spheres
     # whether to visualize the bounding spheres of observed link points, requires log_obstacle_data to be True
     check_braking_trajectory_torque_limits = args.check_braking_trajectory_torque_limits
     # torque constraint adherence by checking the actual torque of an alternative safe behavior
@@ -203,10 +206,15 @@ if __name__ == '__main__':
         # name of the target link for target point reaching
         target_link_offset = [0, 0, 0.126]
         # relative offset between the frame of the target link and the target link point
-    else:
+    elif robot_scene < 6:
         target_link_name = "hand_fixed"
         # name of the target link for target point reaching
         target_link_offset = [0.03, 0, 0.135]
+        # relative offset between the frame of the target link and the target link point
+    else:
+        target_link_name = "arm_wri2"
+        # name of the target link for target point reaching
+        target_link_offset = [0.165, 0.003, 0.00]
         # relative offset between the frame of the target link and the target link point
 
     if args.target_point_cartesian_range_scene is None:

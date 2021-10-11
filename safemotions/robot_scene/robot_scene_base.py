@@ -19,11 +19,20 @@ class RobotSceneBase(object):
     URDF_DIR = os.path.join(MODULE_DIR, "description", "urdf")
     JOINT_LIMITS_SAFETY_BUFFER_IIWA = 0.035
     JOINT_LIMITS_SAFETY_BUFFER_ARMAR = 0
-    MAX_ACCELERATIONS_IIWA = [15.0, 7.5, 10.0, 12.5, 15.0, 20.0, 20.0]
+    MAX_ACCELERATION_IIWA = [15.0, 7.5, 10.0, 12.5, 15.0, 20.0, 20.0]
     MAX_JERK_IIWA = [7500, 3750, 5000, 6250, 7500, 10000, 10000]
-    # Armar: torso (1 prismatic joint [0]) + one arm (8 revolute joints [1:9] from arm_cla_joint to arm_t8_joint)
-    MAX_ACCELERATIONS_ARMAR = [15.0, 15.0, 15.0, 15.0, 15.0, 15.0, 15.0, 15.0, 15.0]
-    MAX_JERK_ARMAR = [7500, 7500, 7500, 7500, 7500, 7500, 7500, 7500, 7500]
+    # Armar 6: torso (1 prismatic joint [0]) + one arm (8 revolute joints [1:9] from arm_cla_joint to arm_t8_joint)
+    MAX_ACCELERATION_ARMAR6 = [15.0, 15.0, 15.0, 15.0, 15.0, 15.0, 15.0, 15.0, 15.0]  # 9 joints
+    MAX_JERK_ARMAR6 = [7500, 7500, 7500, 7500, 7500, 7500, 7500, 7500, 7500]
+    # Armar 4
+    MAX_ACCELERATION_ARMAR4_LEG = [15.0, 15.0, 15.0, 15.0, 15.0, 15.0]  # 6 joints
+    MAX_JERK_ARMAR4_LEG = [7500, 7500, 7500, 7500, 7500, 7500]
+    MAX_ACCELERATION_ARMAR4_TORSO = [7, 4.5]  # 2 joints
+    MAX_JERK_ARMAR4_TORSO = [7500, 7500]
+    MAX_ACCELERATION_ARMAR4_ARM = [7.5, 15.0, 15.0, 15.0, 15.0, 15.0, 15.0, 15.0]  # 8 joints
+    MAX_JERK_ARMAR4_ARM = [7500, 7500, 7500, 7500, 7500, 7500, 7500, 7500]
+    MAX_ACCELERATION_ARMAR4_HAND = [15.0, 15.0, 15.0, 15.0, 15.0, 15.0, 15.0, 15.0, 15.0, 15.0, 15.0]  # 11 joints
+    MAX_JERK_ARMAR6_HAND = [7500, 7500, 7500, 7500, 7500, 7500, 7500, 7500, 7500, 7500, 7500]
 
     def __init__(self,
                  simulation_client_id=None,
@@ -83,6 +92,7 @@ class RobotSceneBase(object):
 
         self._num_robots = None
         self._robot_scene = robot_scene
+        self._shared_link_names = []
 
         robot_urdf = None
         if robot_scene == 0:
@@ -116,21 +126,36 @@ class RobotSceneBase(object):
             self._robot_name = "armar6_x4"
             robot_urdf = "armar6_x4_front"
 
+        if robot_scene == 6:
+            self._num_robots = 2
+            plane_z_offset = 0
+            self._robot_name = "armar4_fixed_hands_and_legs"
+            robot_urdf = "armar4_fixed_hands_and_legs"
+            self._shared_link_names = ['root', 'torso_yaw', 'torso_pitch', 'neck_1', 'neck_2', 'neck_3', 'head_1',
+                                       'head_2']
+
         if target_link_name is None:
             if self._robot_name == "iiwa7":
                 target_link_name = "iiwa_link_7"
             elif self._robot_name.startswith("armar6"):
                 target_link_name = "hand_fixed"
+            elif self._robot_name.startswith("armar4"):
+                target_link_name = "arm_wri2"
 
         if target_link_offset is None:
             if self._robot_name == "iiwa7":
                 target_link_offset = [0, 0, 0.126]
             elif self._robot_name.startswith("armar6"):
                 target_link_offset = [0.03, 0, 0.135]
+            elif self._robot_name.startswith("armar4"):
+                target_link_offset = [0.165, 0.003, 0.00]
             else:
                 target_link_offset = [0, 0, 0]
 
         if self._robot_name.startswith("armar6"):
+            self._shared_link_names = ['platform', 'torso', 'lower_neck', 'middle_neck', 'upper_neck']
+
+        if self._robot_name.startswith("armar"):
             try:
                 import armar
                 urdf_path = armar.get_path_to_urdf_file(robot_name=robot_urdf)
@@ -177,7 +202,7 @@ class RobotSceneBase(object):
             joint_infos = p.getJointInfo(self._robot_id, i)
             if self._robot_name == "iiwa7":
                 joint_limits_safety_buffer = self.JOINT_LIMITS_SAFETY_BUFFER_IIWA
-            elif self._robot_name.startswith("armar6"):
+            elif self._robot_name.startswith("armar"):
                 joint_limits_safety_buffer = self.JOINT_LIMITS_SAFETY_BUFFER_ARMAR
             else:
                 joint_limits_safety_buffer = 0
@@ -195,13 +220,26 @@ class RobotSceneBase(object):
         self._initial_max_torques = np.array(force_limits)
         self._initial_max_velocities = np.array(velocity_limits)
         if self._robot_name == "iiwa7":
-            self._initial_max_accelerations = np.array(self.MAX_ACCELERATIONS_IIWA * self._num_robots)
+            self._initial_max_accelerations = np.array(self.MAX_ACCELERATION_IIWA * self._num_robots)
             self._initial_max_jerk = np.array(self.MAX_JERK_IIWA * self._num_robots)
         if self._robot_name.startswith("armar6"):
-            self._initial_max_accelerations = np.array(self.MAX_ACCELERATIONS_ARMAR[0:1] +
-                                                       self.MAX_ACCELERATIONS_ARMAR[1:9] * self._num_robots)
-            self._initial_max_jerk = np.array(self.MAX_JERK_ARMAR[0:1] +
-                                              self.MAX_JERK_ARMAR[1:9] * self._num_robots)
+            self._initial_max_accelerations = np.array(self.MAX_ACCELERATION_ARMAR6[0:1] +
+                                                       self.MAX_ACCELERATION_ARMAR6[1:9] * self._num_robots)
+            self._initial_max_jerk = np.array(self.MAX_JERK_ARMAR6[0:1] +
+                                              self.MAX_JERK_ARMAR6[1:9] * self._num_robots)
+        if self._robot_name.startswith("armar4"):
+            if "fixed_hands_and_legs" in self._robot_name:
+                self._initial_max_accelerations = np.array(self.MAX_ACCELERATION_ARMAR4_TORSO +
+                                                           self.MAX_ACCELERATION_ARMAR4_ARM * self._num_robots)
+                self._initial_max_jerk = np.array(self.MAX_JERK_ARMAR4_TORSO +
+                                                  self.MAX_JERK_ARMAR4_ARM * self._num_robots)
+            elif "fixed_hands" in self._robot_name:
+                self._initial_max_accelerations = np.array(self.MAX_ACCELERATION_ARMAR4_LEG * self._num_robots +
+                                                           self.MAX_ACCELERATION_ARMAR4_TORSO +
+                                                           self.MAX_ACCELERATION_ARMAR4_ARM * self._num_robots)
+                self._initial_max_jerk = np.array(self.MAX_ACCELERATION_ARMAR4_LEG * self._num_robots +
+                                                  self.MAX_JERK_ARMAR4_TORSO +
+                                                  self.MAX_JERK_ARMAR4_ARM * self._num_robots)
 
         self._deactivate_self_collision_for_adjoining_links()
         self._obstacle_wrapper = \
@@ -375,16 +413,21 @@ class RobotSceneBase(object):
                         joint_indices_per_robot[0].append(i)
                         joint_indices_per_robot[1].append(i)
                     else:
-                        if re.match('^.*_r[0-9]+$', link_name):
-                            # e.g. extract 1 from linkname_r1
-                            robot_index = int(link_name.rsplit('_', 1)[1][1:])
-                            if robot_index >= self._num_robots:
-                                raise ValueError("Found link name " + link_name + ", but expected " + str(
-                                    self._num_robots) + " robots only.")
-                            else:
-                                joint_indices_per_robot[robot_index].append(i)
+                        if self._robot_name.startswith("armar4") and link_name in self._shared_link_names:
+                            joint_indices_per_robot[0].append(i)
+                            joint_indices_per_robot[1].append(i)
                         else:
-                            raise ValueError("Could not find a robot suffix like _r0 for link " + link_name)
+                            if re.match('^.*_r[0-9]+$', link_name):
+                                # e.g. extract 1 from linkname_r1
+                                if not (self._robot_name.startswith("armar4") and link_name.startswith("leg")):
+                                    robot_index = int(link_name.rsplit('_', 1)[1][1:])
+                                    if robot_index >= self._num_robots:
+                                        raise ValueError("Found link name " + link_name + ", but expected " + str(
+                                            self._num_robots) + " robots only.")
+                                    else:
+                                        joint_indices_per_robot[robot_index].append(i)
+                            else:
+                                raise ValueError("Could not find a robot suffix like _r0 for link " + link_name)
 
         return tuple(joint_indices), joint_indices_per_robot
 
@@ -437,6 +480,13 @@ class RobotSceneBase(object):
                                                                                 ["torso", "arm_cla_r3"],
                                                                                 ["platform", "arm_t12_r2"],
                                                                                 ["platform", "arm_t12_r3"]])
+        elif self._robot_name.startswith("armar4"):
+            deactivate_self_collision_detection_link_name_pair_list = [["arm_sho1_r0", "arm_sho1_r1"]]
+            deactivate_self_collision_detection_link_name_pair_list_per_robot = [["leg_knee", "leg_ank2"],
+                                                                                 ["arm_elb2", "arm_wri2"],
+                                                                                 ["torso_pitch", "arm_sho2"],
+                                                                                 ["torso_yaw", "leg_hip1"]]
+
         else:
             deactivate_self_collision_detection_link_name_pair_list = []
             deactivate_self_collision_detection_link_name_pair_list_per_robot = []
@@ -470,16 +520,13 @@ class RobotSceneBase(object):
         if robot_indices is None:
             robot_indices = np.arange(self._num_robots)
 
-        if self._robot_name.startswith("armar6"):
-            shared_link_names = ['platform', 'torso', 'lower_neck', 'middle_neck', 'upper_neck']
-        else:
-            shared_link_names = []
+        for j in range(len(link_names)):
+            if link_names[j] in self._shared_link_names:
+                link_names_multiple_robots.append(link_names[j])
 
         for i in range(len(robot_indices)):
             for j in range(len(link_names)):
-                if link_names[j] in shared_link_names:
-                    link_names_multiple_robots.append(link_names[j])
-                else:
+                if link_names[j] not in self._shared_link_names:
                     link_names_multiple_robots.append(link_names[j] + "_r" + str(robot_indices[i]))
 
         return link_names_multiple_robots

@@ -156,6 +156,10 @@ class ObstacleWrapperBase:
                     self._target_point_relative_pos_min_max = np.array([[-1.55, -2.55, -2.3], [2.24, 2.55, 1.64]])
                 else:
                     self._target_point_relative_pos_min_max = np.array([[-2, -2.6, -2.2], [2, 2.6, 2.2]])
+        elif self._robot_scene.robot_name.startswith("armar4"):
+            self._starting_point_cartesian_range = [[-0.1, 0.75], [-0.9, 0.9],
+                                                    [1.0, 1.6]]  # [[x_min, x_max], [y_min, y_max], [z_min, z_max]
+            self._target_point_relative_pos_min_max = np.array([[-2, -2.6, -2.2], [2, 2.6, 2.2]])
 
         if target_point_cartesian_range_scene == 0:
             self._target_point_cartesian_range = [[-0.6, 0.6], [-0.8, 0.8],
@@ -181,6 +185,9 @@ class ObstacleWrapperBase:
         elif target_point_cartesian_range_scene == 6:
             self._target_point_cartesian_range = [[-0.1, 0.8], [-1.0, 1.0],
                                                   [0.15, 1.65]]  # [[x_min, x_max], [y_min, y_max], [z_min, z_max]]
+        elif target_point_cartesian_range_scene == 7:
+            self._target_point_cartesian_range = [[-0.1, 0.75], [-0.8, 0.8],
+                                                  [1.0, 1.65]]  # [[x_min, x_max], [y_min, y_max], [z_min, z_max]]
         else:
             self._target_point_cartesian_range = [[-0.6, 0.6], [-0.8, 0.8],
                                                   [0.1, 1]]  # [[x_min, x_max], [y_min, y_max], [z_min, z_max]]
@@ -390,6 +397,11 @@ class ObstacleWrapperSim(ObstacleWrapperBase):
         elif self._robot_scene.robot_name.startswith("armar6"):
             closest_point_active_link_name_list = ["arm_t34", "arm_t45", "arm_t56", "arm_t67",
                                                    "arm_t78", "arm_t8", "hand_fixed"]
+            closest_point_active_link_name_multiple_robots_list = self._robot_scene.get_link_names_for_multiple_robots(
+                closest_point_active_link_name_list)
+        elif self._robot_scene.robot_name == "armar4_fixed_hands_and_legs":
+            closest_point_active_link_name_list = ["torso_pitch", "arm_sho4",
+                                                   "arm_elb1", "arm_elb2", "arm_wri2"]
             closest_point_active_link_name_multiple_robots_list = self._robot_scene.get_link_names_for_multiple_robots(
                 closest_point_active_link_name_list)
         else:
@@ -786,6 +798,9 @@ class ObstacleWrapperSim(ObstacleWrapperBase):
             elif self._robot_scene.robot_name.startswith("armar6"):
                 collision_between_robots_link_names = ["arm_t12", "arm_t23", "arm_t34", "arm_t45", "arm_t56", "arm_t67",
                                                        "arm_t78", "arm_t8", "hand_fixed"]
+            elif self._robot_scene.robot_name.startswith("armar4"):
+                collision_between_robots_link_names = ["arm_sho1", "arm_sho2", "arm_sho3", "arm_sho4", "arm_elb1",
+                                                       "arm_elb2", "arm_wri2"]
             else:
                 collision_between_robots_link_names = []
 
@@ -806,6 +821,21 @@ class ObstacleWrapperSim(ObstacleWrapperBase):
                                                                                          robot_indices=[i]):
                         self_collision_link_names += self._robot_scene.get_link_names_for_multiple_robots(
                             ["arm_t12", "arm_t23"], robot_indices=[i])
+
+            if self._robot_scene.robot_name.startswith("armar4"):
+                if link_name in self._robot_scene.get_link_names_for_multiple_robots(
+                        ["arm_sho3", "arm_sho4", "arm_elb1",
+                         "arm_elb2", "arm_wri2"]):
+                    self_collision_link_names += ["torso_pitch"]
+                if link_name in self._robot_scene.get_link_names_for_multiple_robots(
+                        ["arm_elb1", "arm_elb2", "arm_wri2"]):
+                    self_collision_link_names += ["neck_2", "neck_3", "head_2"]
+                if link_name in self._robot_scene.get_link_names_for_multiple_robots(
+                        ["arm_elb2", "arm_wri2"]):
+                    self_collision_link_names += ["torso_yaw", "root"]
+                if link_name in self._robot_scene.get_link_names_for_multiple_robots(["arm_wri2"]):
+                    self_collision_link_names += self._robot_scene.get_link_names_for_multiple_robots(
+                        ["leg_hip1", "leg_hip2", "leg_hip3"])
 
         self_collision_link_indices = []
         for i in range(len(self_collision_link_names)):
@@ -1560,10 +1590,10 @@ class ObstacleWrapperSim(ObstacleWrapperBase):
                     if rgba_color is not None:
                         self._links[j].observed_points[k].set_bounding_sphere_color(rgba_color=rgba_color)
 
-                if self._use_target_points:
-                    for k in range(len(self._target_link_point_list)):
-                        self._target_link_point_list[k].update_bounding_sphere_position(
-                            actual=self._visualize_bounding_sphere_actual)
+            if self._use_target_points:
+                for k in range(len(self._target_link_point_list)):
+                    self._target_link_point_list[k].update_bounding_sphere_position(
+                        actual=self._visualize_bounding_sphere_actual)
 
         if self._use_target_points:
             # check if the target link point is close to the target point
