@@ -14,6 +14,7 @@ import numpy as np
 import pybullet as p
 from klimits import compute_distance_c
 from klimits import interpolate_position_batch as interpolate_position_batch
+from klimits import interpolate_velocity_batch as interpolate_velocity_batch
 from klimits import interpolate_velocity as interpolate_velocity
 from klimits import normalize
 
@@ -131,6 +132,8 @@ class ObstacleWrapperBase:
         self._target_velocity = None
         self._actual_position = None
         self._actual_velocity = None
+        self._last_actual_position = None
+        self._last_actual_velocity = None
 
         if self._robot_scene.robot_name == "iiwa7":
             self._starting_point_cartesian_range = [[-0.6, 0.6], [-0.8, 0.8],
@@ -544,7 +547,12 @@ class ObstacleWrapperSim(ObstacleWrapperBase):
         self._braking_timeout = False
 
         self._target_position = start_position
-        self._target_velocity = [0.0] * len(self._target_position)
+        self._target_velocity = np.array([0.0] * len(self._target_position))
+        self._actual_position = start_position
+        self._actual_velocity = np.array([0.0] * len(self._target_position))
+        self._last_actual_position = None
+        self._last_actual_velocity = None
+
 
         self._obstacle_client_status = self.OBSTACLE_CLIENT_AT_OTHER_POSITION
 
@@ -1435,6 +1443,8 @@ class ObstacleWrapperSim(ObstacleWrapperBase):
         self._target_position = target_position
         self._target_velocity = target_velocity
 
+        self._last_actual_position = self._actual_position
+        self._last_actual_velocity = self._actual_velocity
         self._actual_position = actual_position
         self._actual_velocity = actual_velocity
 
@@ -1977,12 +1987,27 @@ class ObstacleWrapperSim(ObstacleWrapperBase):
     def _check_if_braking_trajectory_is_torque_limited(self, time_step_counter=0):
 
         braking_time_step = 0
-        self.set_robot_position_in_obstacle_client(set_to_actual_values=True)
+
+        self.set_robot_position_in_obstacle_client(target_position=self._last_actual_position,
+                                                   target_velocity=self._last_actual_velocity)
+        '''
+        self.set_robot_position_in_obstacle_client(target_position=self._actual_position,
+                                                   target_velocity=self._actual_velocity)
+        '''
         self._robot_scene.set_motor_control(target_positions=self._braking_trajectory['position'][braking_time_step],
+                                            target_velocities=self._braking_trajectory['velocity'][braking_time_step],
                                             physics_client_id=self._obstacle_client_id)
 
         for i in range(1):
             p.stepSimulation(physicsClientId=self._obstacle_client_id)
+
+        '''
+        actual_position, actual_velocity = \
+            self._robot_scene.get_actual_joint_position_and_velocity(physics_client_id=self._obstacle_client_id)
+        print("Actual pos diff: ", self._actual_position - actual_position)
+        print("Actual vel diff: ", self._actual_velocity - actual_velocity)
+        '''
+
         affected_link_index_list = []
         maximum_rel_torque = None
 
@@ -2004,8 +2029,19 @@ class ObstacleWrapperSim(ObstacleWrapperBase):
                                            self._braking_trajectory['velocity'][braking_time_step],
                                            self._braking_trajectory['position'][braking_time_step],
                                            time_since_start, self._trajectory_time_step)
+
+            if self._robot_scene.use_controller_target_velocities:
+                interpolated_velocity_batch = interpolate_velocity_batch(
+                    self._braking_trajectory['acceleration'][braking_time_step],
+                    self._braking_trajectory['acceleration'][braking_time_step + 1],
+                    self._braking_trajectory['velocity'][braking_time_step],
+                    time_since_start, self._trajectory_time_step)
+            else:
+                interpolated_velocity_batch = None
             for m in range(self._simulation_steps_per_action):
                 self._robot_scene.set_motor_control(target_positions=interpolated_position_batch[m],
+                                                    target_velocities=interpolated_velocity_batch[m]
+                                                    if interpolated_velocity_batch is not None else None,
                                                     physics_client_id=self._obstacle_client_id)
                 p.stepSimulation(physicsClientId=self._obstacle_client_id)
                 actual_joint_torques = self._robot_scene.get_actual_joint_torques(

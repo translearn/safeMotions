@@ -40,6 +40,18 @@ class TrajectoryManager(object):
         self._controller_model_coefficient_b = None
 
     @property
+    def generated_trajectory_control_points(self):
+        return self._generated_trajectory_control_points
+
+    @property
+    def measured_actual_trajectory_control_points(self):
+        return self._measured_actual_trajectory_control_points
+
+    @property
+    def computed_actual_trajectory_control_points(self):
+        return self._computed_actual_trajectory_control_points
+
+    @property
     def trajectory_time_step(self):
         return self._trajectory_time_step
 
@@ -52,7 +64,7 @@ class TrajectoryManager(object):
             self._trajectory_start_position = self._get_new_trajectory_start_position()
         self._trajectory_length = int(self._trajectory_duration / self._trajectory_time_step) + 1
         self._num_manip_joints = len(self._trajectory_start_position)
-        self._zero_joint_vector = [0.0] * self._num_manip_joints
+        self._zero_joint_vector = np.array([0.0] * self._num_manip_joints)
         self._generated_trajectory = {'positions': [self.get_trajectory_start_position()],
                                       'velocities': [self._zero_joint_vector],
                                       'accelerations': [self._zero_joint_vector]}
@@ -68,7 +80,6 @@ class TrajectoryManager(object):
 
     def get_trajectory_start_position(self):
         return self._trajectory_start_position
-
 
     def get_generated_trajectory_point(self, index, key='positions'):
         i = clip_index(index, len(self._generated_trajectory[key]))
@@ -114,7 +125,7 @@ class TrajectoryManager(object):
         self._controller_model_coefficient_a = 1 + (2 * np.array(time_constants) / sampling_time)
         self._controller_model_coefficient_b = 1 - (2 * np.array(time_constants) / sampling_time)
 
-    def model_position_controller_to_compute_actual_position(self, current_position_setpoint, last_position_setpoint):
+    def model_position_controller_to_compute_actual_values(self, current_setpoint, last_setpoint, key='positions'):
         # models the position controller as a discrete transfer function and returns the
         # computed actual position, given the next position setpoint and previous computed actual positions
         # the controller is modelled as a first order low-pass with a (continuous) transfer function of
@@ -123,11 +134,12 @@ class TrajectoryManager(object):
         # the following difference equation can be derived:
         # y_n = 1/a * (x_n + x_n_minus_one - b * y_n_minus_one) with a = 1 + (2 * T / Ta) and b = 1 - (2 * T / Ta)
 
-        x_n = np.array(current_position_setpoint)
-        x_n_minus_one = np.array(last_position_setpoint)
-        y_n_minus_one = np.array(self.get_computed_actual_trajectory_control_point(-1))
+        x_n = np.asarray(current_setpoint)
+        x_n_minus_one = np.asarray(last_setpoint)
+        y_n_minus_one = self.get_computed_actual_trajectory_control_point(-1, key=key)
         computed_actual_position = 1 / self._controller_model_coefficient_a * \
                                    (x_n + x_n_minus_one - self._controller_model_coefficient_b * y_n_minus_one)
+
         return computed_actual_position
 
     def is_trajectory_finished(self, index):

@@ -10,6 +10,7 @@ import argparse
 import time
 import logging
 import os
+import errno
 import sys
 import inspect
 import json
@@ -18,6 +19,19 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(inspect.getfile(
 RENDERER = {'opengl': 0,
             'egl': 1,
             'cpu': 2}
+
+
+def store_env_config(eval_dir, env_config):
+    if not os.path.exists(eval_dir):
+        try:
+            os.makedirs(eval_dir)
+        except OSError as exc:
+            if exc.errno != errno.EEXIST:
+                raise
+
+    with open(os.path.join(eval_dir, "env_config.json"), 'w') as f:
+        f.write(json.dumps(env_config, sort_keys=True))
+        f.flush()
 
 
 if __name__ == '__main__':
@@ -38,6 +52,7 @@ if __name__ == '__main__':
     parser.add_argument('--visualize_bounding_spheres', action='store_true', default=False)
     parser.add_argument('--plot_trajectory', action='store_true', default=False)
     parser.add_argument('--plot_actual_values', action='store_true', default=False)
+    parser.add_argument('--plot_computed_actual_values', action='store_true', default=False)
     parser.add_argument('--plot_acc_limits', action='store_true', default=False)
     parser.add_argument('--switch_gui', action='store_true', default=False)
     parser.add_argument('--pos_limit_factor', type=float, default=1.0)
@@ -52,6 +67,8 @@ if __name__ == '__main__':
     parser.add_argument('--collision_check_time', type=float, default=None)
     parser.add_argument('--check_braking_trajectory_collisions', action='store_true', default=False)
     parser.add_argument('--check_braking_trajectory_torque_limits', action='store_true', default=False)
+    parser.add_argument('--use_controller_target_velocities', action='store_true', default=False)
+    parser.add_argument('--store_trajectory', action='store_true', default=False)
     parser.add_argument('--plot_joint', type=json.loads, default=None)
     parser.add_argument("--logging_level", default='INFO', choices=['DEBUG', 'INFO', 'WARNING', 'ERROR'])
     parser.add_argument('--episodes', type=int, default=20)
@@ -144,7 +161,7 @@ if __name__ == '__main__':
     # selects the joints to be plotted;
     plot_acc_limits = args.plot_acc_limits
     plot_actual_values = args.plot_actual_values
-    plot_computed_actual_values = False
+    plot_computed_actual_values = args.plot_computed_actual_values
     plot_actual_torques = True
     plot_time_limits = None
     log_obstacle_data = args.log_obstacle_data
@@ -153,6 +170,8 @@ if __name__ == '__main__':
     # store the data of the obstacle wrapper as a pickle object; saves the trajectory plot as well
     store_actions = False
     # save the list of predicted actions
+    store_trajectory = args.store_trajectory
+    # save the generated trajectory (joint space)
 
     acc_limit_factor_braking = 1.0  # for brake trajectories, relative to acc_limit_factor
     jerk_limit_factor_braking = 1.0  # for brake trajectories, relative to the corresponding maximum jerk
@@ -276,6 +295,10 @@ if __name__ == '__main__':
     braking_trajectory_max_punishment = 1
     # the maximum punishment per step caused by punishing either the minimum distance or the maximum torque
 
+    use_controller_target_velocities = args.use_controller_target_velocities
+    # whether to use a controller accepting both position setpoints and velocity setpoints instead of
+    # position setpoints only -> lower control latencies
+
     solver_iterations = args.solver_iterations
     # the maximum number of iterations that the physics solver performs at each time step, None -> 150
     random_agent = True  # whether to use random actions
@@ -307,6 +330,7 @@ if __name__ == '__main__':
                       log_obstacle_data=log_obstacle_data,
                       save_obstacle_data=save_obstacle_data,
                       store_actions=store_actions,
+                      store_trajectory=store_trajectory,
                       acc_limit_factor_braking=acc_limit_factor_braking,
                       jerk_limit_factor_braking=jerk_limit_factor_braking,
                       online_trajectory_duration=online_trajectory_duration,
@@ -355,11 +379,16 @@ if __name__ == '__main__':
                       target_point_reached_reward_bonus=target_point_reached_reward_bonus,
                       target_point_use_actual_position=target_point_use_actual_position,
                       target_point_reward_factor=target_point_reward_factor,
+                      use_controller_target_velocities=use_controller_target_velocities,
                       seed=seed, solver_iterations=solver_iterations, logging_level=args.logging_level,
                       random_agent=random_agent)
 
     env = SafeMotionsEnv(**env_config)
     num_episodes = args.episodes
+
+    if store_trajectory:
+        store_env_config(eval_dir=env.evaluation_dir, env_config=env_config)
+
     episode_computation_time_list = []
     start = time.time()
 

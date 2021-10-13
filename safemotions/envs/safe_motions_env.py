@@ -62,3 +62,31 @@ class SafeMotionsEnv(actions.AccelerationPredictionBoundedJerkAccVelPos,
         with open(os.path.join(eval_dir, "episode_{}_{}.json".format(self._episode_counter, self.pid)), 'w') as f:
             f.write(json.dumps(action_dict))
             f.flush()
+
+    def _store_trajectory_data(self):
+        trajectory_dict = {'actions': np.asarray(self._action_list).tolist(),
+                           'trajectory_setpoints': self._to_list(
+                               self._trajectory_manager.generated_trajectory_control_points),
+                           'trajectory_measured_actual_values': self._to_list(
+                               self._trajectory_manager.measured_actual_trajectory_control_points),
+                           'trajectory_computed_actual_values': self._to_list(
+                               self._trajectory_manager.computed_actual_trajectory_control_points),
+                           }
+        eval_dir = os.path.join(self._evaluation_dir, "trajectory_data")
+
+        if not os.path.exists(eval_dir):
+            try:
+                os.makedirs(eval_dir)
+            except OSError as exc:
+                if exc.errno != errno.EEXIST:
+                    raise
+
+        with open(os.path.join(eval_dir, "episode_{}_{}.json".format(self._episode_counter, self.pid)), 'w') as f:
+            f.write(json.dumps(trajectory_dict))
+            f.flush()
+
+    @staticmethod
+    def _to_list(dictionary):
+        for key, value in dictionary.items():
+            dictionary[key] = np.asarray(value).tolist()
+        return dictionary

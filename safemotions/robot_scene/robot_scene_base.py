@@ -72,6 +72,7 @@ class RobotSceneBase(object):
                  acc_limit_factor=1,
                  jerk_limit_factor=1,
                  torque_limit_factor=1,
+                 use_controller_target_velocities=False,
                  reward_maximum_relevant_distance=None,
                  **kwargs):
 
@@ -292,6 +293,8 @@ class RobotSceneBase(object):
         self._jerk_limit_factor = jerk_limit_factor
         self._torque_limit_factor = torque_limit_factor
 
+        self._use_controller_target_velocities = use_controller_target_velocities
+
         self._trajectory_index = -1
 
     def compute_actual_joint_limits(self):
@@ -308,9 +311,8 @@ class RobotSceneBase(object):
                                                         for i in range(len(self._max_accelerations))])
         self._max_torques = self._initial_max_torques * self._torque_limit_factor
 
-        if self._obstacle_wrapper is not None:
-            self._obstacle_wrapper.trajectory_time_step = self._trajectory_time_step
-            self._obstacle_wrapper.torque_limits = np.array([-1 * self._max_torques, self._max_torques])
+        self._obstacle_wrapper.trajectory_time_step = self._trajectory_time_step
+        self._obstacle_wrapper.torque_limits = np.array([-1 * self._max_torques, self._max_torques])
 
         logging.info("Pos upper limits: %s", np.array(self._joint_upper_limits))
         logging.info("Pos lower limits: %s", np.array(self._joint_lower_limits))
@@ -338,6 +340,10 @@ class RobotSceneBase(object):
     @property
     def robot_id(self):
         return self._robot_id
+
+    @property
+    def use_controller_target_velocities(self):
+        return self._use_controller_target_velocities
 
     @property
     def num_robots(self):
@@ -431,11 +437,19 @@ class RobotSceneBase(object):
 
         return tuple(joint_indices), joint_indices_per_robot
 
-    def set_motor_control(self, target_positions, mode=p.POSITION_CONTROL, physics_client_id=0,
-                          manip_joint_indices=None, use_max_force=False, **kwargs):
+    def set_motor_control(self, target_positions, target_velocities=None, target_accelerations=None,
+                          mode=p.POSITION_CONTROL, physics_client_id=0,
+                          manip_joint_indices=None, use_max_force=False,
+                          velocity_gain=0.87,
+                          **kwargs):
         # overwritten by real robot scene
         if manip_joint_indices is None:
             manip_joint_indices = self._manip_joint_indices
+
+        if self._use_controller_target_velocities and target_velocities is not None:
+            # velocity_gain_list = [velocity_gain] * len(target_velocities)
+            velocity_gain_list = [1.0] * len(target_velocities)
+            target_velocities = target_velocities * velocity_gain
 
         if use_max_force:
             if manip_joint_indices != self._manip_joint_indices:
@@ -445,14 +459,29 @@ class RobotSceneBase(object):
             else:
                 max_forces = self._max_torques
 
-            p.setJointMotorControlArray(self._robot_id, manip_joint_indices,
-                                        mode, targetPositions=target_positions,
-                                        forces=max_forces,
-                                        physicsClientId=physics_client_id)
+            if self._use_controller_target_velocities and target_velocities is not None:
+                p.setJointMotorControlArray(self._robot_id, manip_joint_indices,
+                                            mode, targetPositions=target_positions,
+                                            forces=max_forces,
+                                            targetVelocities=target_velocities,
+                                            velocityGains=velocity_gain_list,
+                                            physicsClientId=physics_client_id)
+            else:
+                p.setJointMotorControlArray(self._robot_id, manip_joint_indices,
+                                            mode, targetPositions=target_positions,
+                                            forces=max_forces,
+                                            physicsClientId=physics_client_id)
         else:
-            p.setJointMotorControlArray(self._robot_id, manip_joint_indices,
-                                        mode, targetPositions=target_positions,
-                                        physicsClientId=physics_client_id)
+            if self._use_controller_target_velocities and target_velocities is not None:
+                p.setJointMotorControlArray(self._robot_id, manip_joint_indices,
+                                            mode, targetPositions=target_positions,
+                                            targetVelocities=target_velocities,
+                                            velocityGains=velocity_gain_list,
+                                            physicsClientId=physics_client_id)
+            else:
+                p.setJointMotorControlArray(self._robot_id, manip_joint_indices,
+                                            mode, targetPositions=target_positions,
+                                            physicsClientId=physics_client_id)
 
     def get_actual_joint_torques(self, physics_client_id=0, manip_joint_indices=None):
         # overwritten by reality wrapper

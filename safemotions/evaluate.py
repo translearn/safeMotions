@@ -260,6 +260,7 @@ if __name__ == '__main__':
     parser.add_argument('--plot_joint', type=json.loads, default=None)
     parser.add_argument('--torque_limit_factor', type=float, default=None)
     parser.add_argument('--store_actions', action='store_true', default=False)
+    parser.add_argument('--store_trajectory', action='store_true', default=False)
     parser.add_argument('--store_network_data', action='store_true', default=False)
     parser.add_argument('--no_exploration', action='store_true', default=False)
     parser.add_argument('--log_obstacle_data', action='store_true', default=False)
@@ -351,6 +352,9 @@ if __name__ == '__main__':
 
     if args.store_actions:
         env_config['store_actions'] = True
+
+    if args.store_trajectory:
+        env_config['store_trajectory'] = True
 
     if args.log_obstacle_data:
         env_config['log_obstacle_data'] = True

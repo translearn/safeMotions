@@ -60,6 +60,7 @@ class SafeMotionsBase(gym.Env):
                  log_obstacle_data=False,
                  save_obstacle_data=False,
                  store_actions=False,
+                 store_trajectory=False,
                  online_trajectory_duration=8.0,
                  online_trajectory_time_step=0.1,
                  position_controller_time_constants=None,
@@ -88,6 +89,7 @@ class SafeMotionsBase(gym.Env):
                  target_link_name=None,
                  target_link_offset=None,
                  no_self_collision=False,
+                 use_controller_target_velocities=False,
                  time_step_fraction_sleep_observation=0.0,
                  seed=None,
                  solver_iterations=None,
@@ -155,6 +157,7 @@ class SafeMotionsBase(gym.Env):
         self._target_point_reached_reward_bonus = target_point_reached_reward_bonus
         self._target_point_use_actual_position = target_point_use_actual_position
         self._no_self_collision = no_self_collision
+        self._use_controller_target_velocities = use_controller_target_velocities
         self._trajectory_time_step = online_trajectory_time_step
         self._position_controller_time_constants = position_controller_time_constants
         self._plot_computed_actual_values = plot_computed_actual_values
@@ -168,6 +171,7 @@ class SafeMotionsBase(gym.Env):
         self._online_trajectory_duration = online_trajectory_duration
         self._eval_new_condition_counter = eval_new_condition_counter
         self._store_actions = store_actions
+        self._store_trajectory = store_trajectory
         self._target_link_offset = target_link_offset
         self._real_robot_debug_mode = real_robot_debug_mode
         self._random_agent = random_agent
@@ -343,6 +347,7 @@ class SafeMotionsBase(gym.Env):
                                   'acc_limit_factor': self._acc_limit_factor,
                                   'jerk_limit_factor': self._jerk_limit_factor,
                                   'torque_limit_factor': self._torque_limit_factor,
+                                  'use_controller_target_velocities': self._use_controller_target_velocities,
                                   'reward_maximum_relevant_distance': self.reward_maximum_relevant_distance
                                   }
 
@@ -354,7 +359,10 @@ class SafeMotionsBase(gym.Env):
 
         self._num_manip_joints = self._robot_scene.num_manip_joints
         if self._position_controller_time_constants is None:
-            self._position_controller_time_constants = [0.030] * self._num_manip_joints
+            if self._use_controller_target_velocities:
+                self._position_controller_time_constants = [0.0005] * self._num_manip_joints
+            else:
+                self._position_controller_time_constants = [0.0372] * self._num_manip_joints
 
         # trajectory manager settings
         self._trajectory_manager = TrajectoryManager(trajectory_time_step=self._trajectory_time_step,
@@ -373,7 +381,8 @@ class SafeMotionsBase(gym.Env):
             self._trajectory_manager.compute_controller_model_coefficients(self._position_controller_time_constants,
                                                                            self._simulation_time_step)
 
-        self._zero_joint_vector = [0.0] * self._num_manip_joints
+        self._zero_joint_vector_list = [0.0] * self._num_manip_joints
+        self._zero_joint_vector_array = np.array(self._zero_joint_vector_list)
 
         if (self._use_movement_thread_or_process or self._use_gui) and self._use_control_rate_sleep:
             try:
@@ -423,8 +432,8 @@ class SafeMotionsBase(gym.Env):
         self._robot_scene.obstacle_wrapper.reset_obstacles()
         self._trajectory_manager.reset(get_new_trajectory=get_new_setup)
         self._start_position = np.array(self._get_trajectory_start_position())
-        self._start_velocity = np.array(self._zero_joint_vector)
-        self._start_acceleration = np.array(self._zero_joint_vector)
+        self._start_velocity = self._zero_joint_vector_array
+        self._start_acceleration = self._zero_joint_vector_array
         if self._use_real_robot:
             logging.info("Starting position: %s", self._start_position)
         else:
@@ -438,18 +447,23 @@ class SafeMotionsBase(gym.Env):
                                                   actual_velocity=self._start_velocity)
 
         self._reset_plotter(self._start_position)
-        self._add_computed_actual_position_to_plot(self._start_position, self._zero_joint_vector,
-                                                   self._zero_joint_vector)
+        self._add_computed_actual_position_to_plot(self._start_position, self._start_velocity,
+                                                   self._start_acceleration)
+        if not self._use_real_robot:
+            self._add_actual_position_to_plot(self._start_position)
 
-        if self._plot_actual_torques and not self._use_real_robot:
+        if not self._use_real_robot:
             # the initial torques are not zero due to gravity
             self._robot_scene.set_motor_control(target_positions=self._start_position,
+                                                target_velocities=self._start_velocity,
+                                                target_accelerations=self._start_acceleration,
                                                 physics_client_id=self._simulation_client_id)
             p.stepSimulation(physicsClientId=self._simulation_client_id)
+        if self._plot_actual_torques and not self._use_real_robot:
             actual_joint_torques = self._robot_scene.get_actual_joint_torques()
             self._add_actual_torques_to_plot(actual_joint_torques)
         else:
-            self._add_actual_torques_to_plot(self._zero_joint_vector)
+            self._add_actual_torques_to_plot(self._zero_joint_vector_list)
 
         self._calculate_safe_acc_range(self._start_position, self._start_velocity, self._start_acceleration,
                                        self._current_trajectory_point_index)
@@ -479,7 +493,7 @@ class SafeMotionsBase(gym.Env):
         else:
             action = np.asarray(action, dtype=np.float64)
 
-        if self._store_actions:
+        if self._store_actions or self._store_trajectory:
             self._action_list.append(action)
 
         logging.debug("Action %s: %s", self._episode_length - 1, action)
@@ -487,10 +501,11 @@ class SafeMotionsBase(gym.Env):
         end_acceleration, controller_setpoints, obstacle_client_update_setpoints, action_info, robot_stopped = \
             self._compute_controller_setpoints_from_action(action)
 
-        for i in range(len(controller_setpoints['positions'])):
-            self._add_generated_trajectory_control_point(controller_setpoints['positions'][i],
-                                                         controller_setpoints['velocities'][i],
-                                                         controller_setpoints['accelerations'][i])
+        if self._store_trajectory:
+            for i in range(len(controller_setpoints['positions'])):
+                self._add_generated_trajectory_control_point(controller_setpoints['positions'][i],
+                                                             controller_setpoints['velocities'][i],
+                                                             controller_setpoints['accelerations'][i])
 
         for i in range(len(obstacle_client_update_setpoints['positions'])):
 
@@ -498,29 +513,44 @@ class SafeMotionsBase(gym.Env):
 
                 last_position_setpoint = self._start_position if i == 0 else obstacle_client_update_setpoints[
                     'positions'][i - 1]
-                computed_position_is = self._trajectory_manager.model_position_controller_to_compute_actual_position(
-                    current_position_setpoint=obstacle_client_update_setpoints['positions'][i],
-                    last_position_setpoint=last_position_setpoint)
-                computed_velocity_is = (np.array(computed_position_is) - np.array(
-                    self._get_computed_actual_trajectory_control_point(-1))) / self._simulation_time_step
-                computed_acceleration_is = (computed_velocity_is - np.array(
-                    self._get_computed_actual_trajectory_control_point(-1,
-                                                                       key='velocities'))) / self._simulation_time_step
+                computed_position_is = self._trajectory_manager.model_position_controller_to_compute_actual_values(
+                    current_setpoint=obstacle_client_update_setpoints['positions'][i],
+                    last_setpoint=last_position_setpoint)
 
-                self._add_computed_actual_trajectory_control_point(list(computed_position_is),
-                                                                   list(computed_velocity_is),
-                                                                   list(computed_acceleration_is))
+                last_velocity_setpoint = self._start_velocity if i == 0 else obstacle_client_update_setpoints[
+                    'velocities'][i - 1]
+                computed_velocity_is = self._trajectory_manager.model_position_controller_to_compute_actual_values(
+                    current_setpoint=obstacle_client_update_setpoints['velocities'][i],
+                    last_setpoint=last_velocity_setpoint, key='velocities')
+
+                last_acceleration_setpoint = self._start_acceleration if i == 0 else obstacle_client_update_setpoints[
+                    'accelerations'][i - 1]
+                computed_acceleration_is = self._trajectory_manager.model_position_controller_to_compute_actual_values(
+                    current_setpoint=obstacle_client_update_setpoints['accelerations'][i],
+                    last_setpoint=last_acceleration_setpoint, key='accelerations')
+
+                '''
+                computed_velocity_is = (computed_position_is -
+                                        self._get_computed_actual_trajectory_control_point(-1)) \
+                                       / self._simulation_time_step
+                
+                computed_acceleration_is = (computed_velocity_is - self._get_computed_actual_trajectory_control_point(
+                    -1, key='velocities')) / self._simulation_time_step
+                '''
+
+                self._add_computed_actual_trajectory_control_point(computed_position_is,
+                                                                   computed_velocity_is,
+                                                                   computed_acceleration_is)
                 self._add_computed_actual_position_to_plot(computed_position_is, computed_velocity_is,
                                                            computed_acceleration_is)
 
-                if self._robot_scene.obstacle_wrapper is not None:
-                    if self._use_movement_thread_or_process or self._obstacle_use_computed_actual_values:
-                        self._robot_scene.obstacle_wrapper.update(
-                            target_position=obstacle_client_update_setpoints['positions'][i],
-                            target_velocity=obstacle_client_update_setpoints['velocities'][i],
-                            target_acceleration=obstacle_client_update_setpoints['accelerations'][i],
-                            actual_position=computed_position_is,
-                            actual_velocity=computed_velocity_is)
+                if self._use_movement_thread_or_process or self._obstacle_use_computed_actual_values:
+                    self._robot_scene.obstacle_wrapper.update(
+                        target_position=obstacle_client_update_setpoints['positions'][i],
+                        target_velocity=obstacle_client_update_setpoints['velocities'][i],
+                        target_acceleration=obstacle_client_update_setpoints['accelerations'][i],
+                        actual_position=computed_position_is,
+                        actual_velocity=computed_velocity_is)
 
         if self._control_rate is not None and self._episode_length == 1:
             # start the control phase and compute the precomputation time
@@ -609,7 +639,8 @@ class SafeMotionsBase(gym.Env):
 
                 if self._store_actions:
                     self._store_action_list()
-
+                if self._store_trajectory:
+                    self._store_trajectory_data()
             else:
                 self._brake = True  # slow down the robot prior to stopping the episode
                 done = False
@@ -620,13 +651,13 @@ class SafeMotionsBase(gym.Env):
         # executed in real-time if required
         actual_joint_torques_rel_abs_list = []
         for i in range(len(controller_setpoints['positions'])):
-            if not self._use_real_robot:
-                self._add_actual_position_to_plot()
 
             if self._control_rate is not None:
                 self._control_rate.sleep()
 
             self._robot_scene.set_motor_control(controller_setpoints['positions'][i],
+                                                target_velocities=controller_setpoints['velocities'][i],
+                                                target_accelerations=controller_setpoints['accelerations'][i],
                                                 computed_position_is=controller_setpoints['positions'][i],
                                                 computed_velocity_is=controller_setpoints['velocities'][i])
 
@@ -640,16 +671,27 @@ class SafeMotionsBase(gym.Env):
                 if self._plot_actual_torques:
                     self._add_actual_torques_to_plot(actual_joint_torques)
 
-            if self._robot_scene.obstacle_wrapper is not None:
-                if not self._use_movement_thread_or_process and not self._obstacle_use_computed_actual_values:
-                    actual_position, actual_velocity = self._robot_scene.get_actual_joint_position_and_velocity()
+            actual_position = None
 
-                    self._robot_scene.obstacle_wrapper.update(target_position=controller_setpoints['positions'][i],
-                                                              target_velocity=controller_setpoints['velocities'][i],
-                                                              target_acceleration=controller_setpoints['accelerations'][
-                                                                  i],
-                                                              actual_position=actual_position,
-                                                              actual_velocity=actual_velocity)
+            if not self._use_movement_thread_or_process and not self._obstacle_use_computed_actual_values:
+                actual_position, actual_velocity = self._robot_scene.get_actual_joint_position_and_velocity()
+
+                self._robot_scene.obstacle_wrapper.update(target_position=controller_setpoints['positions'][i],
+                                                          target_velocity=controller_setpoints['velocities'][i],
+                                                          target_acceleration=controller_setpoints['accelerations'][
+                                                              i],
+                                                          actual_position=actual_position,
+                                                          actual_velocity=actual_velocity)
+
+                if self._store_trajectory:
+                    actual_acceleration = (actual_velocity - np.array(
+                        self._get_measured_actual_trajectory_control_point(-1, key='velocities'))) / \
+                                          self._simulation_time_step
+                    self._add_measured_actual_trajectory_control_point(actual_position, actual_velocity,
+                                                                       actual_acceleration)
+
+            if not self._use_real_robot:
+                self._add_actual_position_to_plot(actual_position)
 
         movement_info = {'average': {}, 'max': {}}
 
@@ -770,6 +812,10 @@ class SafeMotionsBase(gym.Env):
     def _store_action_list(self):
         raise NotImplementedError()
 
+    @abstractmethod
+    def _store_trajectory_data(self):
+        raise NotImplementedError()
+
     def _check_termination(self):
         done = False
         if self._trajectory_manager.is_trajectory_finished(self._current_trajectory_point_index):
@@ -817,7 +863,7 @@ class SafeMotionsBase(gym.Env):
         pass
 
     @abstractmethod
-    def _add_actual_position_to_plot(self):
+    def _add_actual_position_to_plot(self, actual_position):
         pass
 
     @abstractmethod

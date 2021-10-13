@@ -131,10 +131,11 @@ class AccelerationPredictionBoundedJerkAccVelPos(ABC, SafeMotionsBase):
         if self._plot_trajectory:
             self._trajectory_plotter.display_plot(obstacle_wrapper=self._robot_scene.obstacle_wrapper)
 
-    def _add_actual_position_to_plot(self):
+    def _add_actual_position_to_plot(self, actual_position=None):
         if (self._plot_trajectory and self._plot_actual_values) or self._save_trajectory_plot:
-            actual_joint_position = self._robot_scene.get_actual_joint_positions()
-            self._trajectory_plotter.add_actual_position(actual_joint_position)
+            if actual_position is None:
+                actual_position = self._robot_scene.get_actual_joint_positions()
+            self._trajectory_plotter.add_actual_position(actual_position)
 
     def _add_computed_actual_position_to_plot(self, computed_position_is, computed_velocity_is,
                                               computed_acceleration_is):

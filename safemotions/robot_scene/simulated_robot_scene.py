@@ -22,12 +22,12 @@ class SimRobotScene(RobotSceneBase):
                               targetVelocity=0,
                               physicsClientId=self._simulation_client_id)
 
-    def get_actual_joint_position_and_velocity(self, manip_joint_indices=None):
+    def get_actual_joint_position_and_velocity(self, manip_joint_indices=None, physics_client_id=0):
         if manip_joint_indices is None:
             manip_joint_indices = self._manip_joint_indices
         # return the actual joint position and velocity for the specified joint indices from the physicsClient
         joint_states = p.getJointStates(self._robot_id, manip_joint_indices,
-                                        physicsClientId=self._simulation_client_id)
+                                        physicsClientId=physics_client_id)
 
         joint_states_swap = np.swapaxes(np.array(joint_states, dtype=object), 0, 1)
 

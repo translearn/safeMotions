@@ -141,6 +141,7 @@ def _make_env_config():
         'braking_trajectory_max_torque_min_threshold': args.braking_trajectory_max_torque_min_threshold,
         'robot_scene': args.robot_scene,
         'no_self_collision': args.no_self_collision,
+        'use_controller_target_velocities': args.use_controller_target_velocities,
         'target_point_cartesian_range_scene': args.target_point_cartesian_range_scene,
         'target_point_relative_pos_scene': args.target_point_relative_pos_scene,
         'target_point_radius': args.target_point_radius,
@@ -252,6 +253,7 @@ if __name__ == '__main__':
     parser.add_argument('--jerk_limit_factor_braking', type=float, default=1.0)
     parser.add_argument('--robot_scene', type=int, default=0)
     parser.add_argument('--no_self_collision', action='store_true', default=False)
+    parser.add_argument('--use_controller_target_velocities', action='store_true', default=False)
     parser.add_argument('--target_point_cartesian_range_scene', type=int, default=0)
     parser.add_argument('--target_point_relative_pos_scene', type=int, default=0)
     parser.add_argument('--target_point_radius', type=float, default=0.065)
