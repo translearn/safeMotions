@@ -14,6 +14,7 @@ import ray
 import klimits
 import datetime
 import time
+import errno
 import logging
 import numpy as np
 from ray.rllib import rollout
@@ -93,6 +94,19 @@ def store_network_data(base_dir, real_robot, pid, episode_counter, reward_total,
         f.flush()
 
 
+def store_env_config(eval_dir, env_config):
+    if not os.path.exists(eval_dir):
+        try:
+            os.makedirs(eval_dir)
+        except OSError as exc:
+            if exc.errno != errno.EEXIST:
+                raise
+
+    with open(os.path.join(eval_dir, "env_config.json"), 'w') as f:
+        f.write(json.dumps(env_config, sort_keys=True))
+        f.flush()
+
+
 def store_metrics(base_dir, real_robot, pid, episode_counter, reward_total, last_info, episode_info):
     metric_file = "episode_{}_{}_{:.3f}.json".format(episode_counter, pid, reward_total)
     episode_info['reward'] = float(reward_total)
@@ -127,12 +141,14 @@ def store_metrics(base_dir, real_robot, pid, episode_counter, reward_total, last
 
 def rollout_multiple_workers():
     remote_workers = agent.workers.remote_workers()
-    if args.store_metrics or args.store_network_data:
+    if args.store_metrics or args.store_network_data or args.store_trajectory:
         evaluation_dir = ray.get(remote_workers[0].foreach_env.remote(lambda env: env.evaluation_dir))[0]
         if args.store_metrics:
             make_metrics_dir(evaluation_dir, args.use_real_robot)
         if args.store_network_data:
             make_network_data_dir(evaluation_dir, args.use_real_robot)
+        if args.store_trajectory:
+            store_env_config(evaluation_dir, args.config["env_config"])
     if args.seed is not None:  # increment the seed for each worker by one
         for i in range(0, len(remote_workers)):
             remote_workers[i].foreach_env.remote(lambda env: env.set_seed(args.seed + i))
@@ -577,6 +593,8 @@ if __name__ == '__main__':
             make_metrics_dir(env.evaluation_dir, args.use_real_robot)
         if args.store_network_data:
             make_network_data_dir(env.evaluation_dir, args.use_real_robot)
+        if args.store_trajectory:
+            store_env_config(env.evaluation_dir, args.config["env_config"])
         rollout_single_worker_manually()
     else:
         if args.use_real_robot:
