@@ -64,7 +64,7 @@ class SafeObservation(ABC, SafeMotionsBase):
                 obs_target_point_size += self._robot_scene.num_robots  # target point active signal for each robot
 
         self._observation_size = self._m_prev * self._num_manip_joints + obs_current_size * self._num_manip_joints \
-                                 + obs_target_point_size
+            + obs_target_point_size
 
         self.observation_space = Box(low=np.float32(-1), high=np.float32(1), shape=(self._observation_size,),
                                      dtype=np.float32)
@@ -117,9 +117,10 @@ class SafeObservation(ABC, SafeMotionsBase):
             target_point_rel_obs = target_point_rel_obs + list(target_point_active_obs)
             # to indicate if the target point is active (1.0) or inactive (0.0); the list is empty if not required
 
-        observation = list(np.clip([item for sublist in prev_joint_accelerations_rel for item in sublist]
-                                   + curr_joint_positions_rel_obs + curr_joint_velocity_rel_obs
-                                   + curr_joint_acceleration_rel_obs + target_point_rel_obs, -1, 1))
+        observation = np.array((np.core.umath.clip(
+            [item for sublist in prev_joint_accelerations_rel for item in sublist]
+            + curr_joint_positions_rel_obs + curr_joint_velocity_rel_obs
+            + curr_joint_acceleration_rel_obs + target_point_rel_obs, -1, 1)), dtype=np.float32)
 
         info = {'average': {},
                 'max': {},
@@ -165,7 +166,7 @@ class SafeObservation(ABC, SafeMotionsBase):
         info['max']['joint_vel_violation'] = vel_violation
         info['max']['joint_acc_violation'] = acc_violation
 
-        logging.debug("Observation %s: %s", self._episode_length, np.array(observation))
+        logging.debug("Observation %s: %s", self._episode_length, np.asarray(observation))
 
         return observation, info
 

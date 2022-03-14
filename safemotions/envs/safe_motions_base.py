@@ -529,15 +529,6 @@ class SafeMotionsBase(gym.Env):
                     current_setpoint=obstacle_client_update_setpoints['accelerations'][i],
                     last_setpoint=last_acceleration_setpoint, key='accelerations')
 
-                '''
-                computed_velocity_is = (computed_position_is -
-                                        self._get_computed_actual_trajectory_control_point(-1)) \
-                                       / self._simulation_time_step
-                
-                computed_acceleration_is = (computed_velocity_is - self._get_computed_actual_trajectory_control_point(
-                    -1, key='velocities')) / self._simulation_time_step
-                '''
-
                 self._add_computed_actual_trajectory_control_point(computed_position_is,
                                                                    computed_velocity_is,
                                                                    computed_acceleration_is)
