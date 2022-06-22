@@ -2,8 +2,7 @@
 [![arXiv](https://img.shields.io/badge/arXiv-2103.03793-B31B1B)](https://arxiv.org/abs/2103.03793)
 [![PyPI version](https://img.shields.io/pypi/v/safemotions)](https://pypi.python.org/pypi/safemotions)
 [![PyPI license](https://img.shields.io/pypi/l/safemotions)](https://pypi.python.org/pypi/safemotions)
-[![GitHub issues](https://img.shields.io/github/issues/translearn/safemotions)](https://github.com/translearn/safemotions/issues/)
-[![PyPI download month](https://img.shields.io/pypi/dm/safeMotions)](https://pypi.python.org/pypi/safemotions/) <br>
+[![GitHub issues](https://img.shields.io/github/issues/translearn/safemotions)](https://github.com/translearn/safemotions/issues/)<br>
 This python package provides the code to learn torque-limited and collision-free robot trajectories without exceeding limits on the position, velocity, acceleration and jerk of each robot joint.
 
 ![safemotions_picture](https://user-images.githubusercontent.com/51738372/116555683-f32d7680-a8fc-11eb-8cce-b01931c6ba58.png)

@@ -42,6 +42,6 @@ setup(name='safemotions',
           'gym',
           'Pillow'
       ],
-      extras_require={'train': ['aiohttp==3.7.4.post0', 'aiohttp-cors==0.7.0', 'aioredis==1.3.1',
+      extras_require={'train': ['aiohttp==3.7.4.post0', 'aiohttp-cors==0.7.0', 'aioredis==1.3.1', 'redis==3.5.3', 'prometheus-client==0.11.0',
                                 'ray[default]==1.4.1', 'ray[rllib]==1.4.1', 'tensorflow']}
       )
