@@ -1,4 +1,5 @@
 # Learning Collision-free and Torque-limited Robot Trajectories based on Alternative Safe Behaviors 
+[![IEEE Humanoids 2022](https://img.shields.io/badge/Humanoids-2022-%3C%3E)](https://www.humanoids2022.org/)
 [![arXiv](https://img.shields.io/badge/arXiv-2103.03793-B31B1B)](https://arxiv.org/abs/2103.03793)
 [![PyPI version](https://img.shields.io/pypi/v/safemotions)](https://pypi.python.org/pypi/safemotions)
 [![PyPI license](https://img.shields.io/pypi/l/safemotions)](https://pypi.python.org/pypi/safemotions)
