@@ -8,7 +8,7 @@ gym==0.18.3
 klimits==1.1.1
 matplotlib==3.3.4
 numpy==1.19.5
-pybullet==3.1.7
+pybullet==3.2.2
 ray[default]==1.4.1
 ray[rllib]==1.4.1
 tensorflow==2.5.0
