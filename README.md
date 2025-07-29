@@ -104,7 +104,15 @@ python safemotions/train.py --logdir=safemotions_training --name=industrial_one_
 ```
 
 ## Publication
-The corresponding publication is available at [https://arxiv.org/abs/2103.03793](https://arxiv.org/abs/2103.03793).
+Further details can be found in the following [publication](https://arxiv.org/abs/2103.03793):
+```
+  title={Learning Collision-free and Torque-limited Robot Trajectories based on Alternative Safe Behaviors}, 
+  booktitle={2022 IEEE-RAS 21st International Conference on Humanoid Robots (Humanoids)},
+  author={Kiemel, Jonas and Kröger, Torsten},
+  year={2022},
+  pages={223-230},
+  doi={10.1109/Humanoids53995.2022.10000077}
+```
 
 [![Video](https://user-images.githubusercontent.com/51738372/196687365-0adb05c7-88ec-423f-86bd-f0600e62ea82.png)](https://youtu.be/U2OWsQrt-40)
 
